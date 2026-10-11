@@ -397,7 +397,10 @@ footer {
 }
 
 .parking-heading p {
-    color: #64748b;
+    color: var(--muted);
+    max-width: 650px;
+    margin: 0 auto 18px;
+    line-height: 1.8;
 }
 
 .parking-summary {
@@ -904,4 +907,66 @@ footer {
 
 .admin-table-wrap form {
     margin: 0;
+}
+
+/* FINAL POLISH - PHASE 1 AND PHASE 2 */
+
+.slot-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.slot-card.available {
+    background: linear-gradient(
+        145deg,
+        rgba(22, 163, 74, 0.13),
+        rgba(13, 27, 45, 0.96)
+    );
+}
+
+.slot-card.occupied {
+    background: linear-gradient(
+        145deg,
+        rgba(220, 38, 38, 0.13),
+        rgba(13, 27, 45, 0.96)
+    );
+}
+
+.slot-card .status {
+    display: inline-block;
+    padding: 5px 11px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.slot-card .btn:disabled {
+    background: #64748b;
+    color: #ffffff;
+    opacity: 0.8;
+}
+
+.admin-table-wrap td {
+    vertical-align: middle;
+}
+
+.admin-table-wrap tr:hover {
+    background: rgba(56, 217, 214, 0.04);
+}
+
+.btn-danger:hover {
+    background: #b91c1c;
+}
+
+@media (max-width: 500px) {
+    .slot-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-edit-form input {
+        width: 100%;
+    }
 }

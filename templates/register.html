@@ -4,32 +4,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create Account | Smart Parking</title>
+    <title>Create Account | SmartPark</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <h1>Smart Parking System</h1>
-    <h2>Create an Account</h2>
+    <nav class="navbar">
+        <a class="logo" href="{{ url_for('login') }}">Smart<span>Park</span></a>
+        <div class="nav-links">
+            <a href="{{ url_for('login') }}">Login</a>
+            <a href="{{ url_for('register') }}">Register</a>
+        </div>
+    </nav>
 
-    {% with messages = get_flashed_messages() %}
-        {% for message in messages %}
-            <p>{{ message }}</p>
-        {% endfor %}
-    {% endwith %}
+    <main class="container form-wrap">
+        <section class="form-card">
+            <p class="eyebrow">JOIN SMARTPARK</p>
+            <h1>Create Your Account</h1>
+            <p>Get started with smarter parking management.</p>
 
-    <form method="POST">
-        <label for="name">Full Name</label>
-        <input id="name" type="text" name="name" required>
+            {% with messages = get_flashed_messages() %}
+                {% for message in messages %}
+                    <div class="flash">{{ message }}</div>
+                {% endfor %}
+            {% endwith %}
 
-        <label for="email">Email</label>
-        <input id="email" type="email" name="email" required>
+            <form method="POST">
+                <label for="name">Full Name</label>
+                <input id="name" type="text" name="name"
+                       placeholder="Enter your full name"
+                       autocomplete="name" required>
 
-        <label for="password">Password (minimum 8 characters)</label>
-        <input id="password" type="password" name="password" minlength="8" required>
+                <label for="email">Email Address</label>
+                <input id="email" type="email" name="email"
+                       placeholder="you@example.com"
+                       autocomplete="email" required>
 
-        <button type="submit">Register</button>
-    </form>
+                <label for="password">Password</label>
+                <input id="password" type="password" name="password"
+                       placeholder="At least 8 characters"
+                       minlength="8" autocomplete="new-password" required>
 
-    <p>Already registered? <a href="{{ url_for('login') }}">Log in</a></p>
+                <button class="btn" type="submit">Create Account →</button>
+            </form>
+
+            <p class="form-footer">
+                Already have an account?
+                <a href="{{ url_for('login') }}">Log in</a>
+            </p>
+        </section>
+    </main>
+
+    <footer>
+        <p>SmartPark · Smart Parking Management System</p>
+    </footer>
 </body>
 </html>

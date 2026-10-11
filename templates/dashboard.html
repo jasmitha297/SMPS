@@ -1,27 +1,79 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard | Smart Parking</title>
+    <title>Dashboard | SmartPark</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <h1>Smart Parking System</h1>
-    <h2>Welcome, {{ name }}!</h2>
-    <p>You have successfully logged in.</p>
+    <nav class="navbar">
+        <a class="logo" href="{{ url_for('dashboard') }}">Smart<span>Park</span></a>
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('parking_slots') }}">Parking Slots</a>
+            <a href="{{ url_for('logout') }}">Logout</a>
+        </div>
+    </nav>
 
-    <a href="{{ url_for('parking_slots') }}" class="btn">
-        View Parking Slots →
-    </a>
+    <main class="container">
+        <section class="hero">
+            <div>
+                <p class="eyebrow">SMART PARKING MANAGEMENT</p>
+                <h1>Welcome, <span class="gradient-text">{{ name }}</span>!</h1>
+                <p>
+                    Manage parking availability with a simple,
+                    organised and easy-to-use interface.
+                </p>
 
-    {% if is_admin %}
-        <a href="{{ url_for('admin_slots') }}" class="btn btn-secondary">
-            Admin Slot Management
-        </a>
-    {% endif %}
+                <a href="{{ url_for('parking_slots') }}" class="btn">
+                    Explore Parking Slots →
+                </a>
 
-    <br><br>
-    <a href="{{ url_for('logout') }}">Logout</a>
+                {% if is_admin %}
+                    <a href="{{ url_for('admin_slots') }}"
+                       class="btn btn-secondary">
+                        Manage Slots
+                    </a>
+                {% endif %}
+            </div>
+
+            <div class="hero-image">
+                <div class="image-label">
+                    <strong>SmartPark Dashboard</strong>
+                    <p>Check parking spaces and their current status.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="card-grid">
+            <article class="card">
+                <div class="card-icon">🅿️</div>
+                <h2>Parking Availability</h2>
+                <p>View which parking slots are available or occupied.</p>
+                <a href="{{ url_for('parking_slots') }}">View slots →</a>
+            </article>
+
+            <article class="card">
+                <div class="card-icon">🔐</div>
+                <h2>Account Security</h2>
+                <p>Access the application through your registered account.</p>
+            </article>
+
+            {% if is_admin %}
+                <article class="card">
+                    <div class="card-icon">⚙️</div>
+                    <h2>Slot Administration</h2>
+                    <p>Add, edit, monitor and remove parking slot records.</p>
+                    <a href="{{ url_for('admin_slots') }}">Manage slots →</a>
+                </article>
+            {% endif %}
+        </section>
+    </main>
+
+    <footer>
+        <p>SmartPark · Smart Parking Management System</p>
+    </footer>
 </body>
 </html>

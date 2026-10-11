@@ -20,7 +20,7 @@
         <section class="parking-heading">
             <p class="eyebrow">PHASE 2 · PARKING MANAGEMENT</p>
             <h1>Find Your <span class="gradient-text">Parking Slot</span></h1>
-            <p>Select an available slot and enter your vehicle number to reserve your space.</p>
+            <p>Explore parking availability, select a free slot, and update its status.</p>
         </section>
 
         <section class="stats-grid">
@@ -54,7 +54,7 @@
         <section class="slot-grid">
             {% for slot in slots %}
                 <article class="slot-card {{ 'available' if slot['status'] == 'Available' else 'occupied' }}">
-                    <div class="slot-icon">P</div>
+                    <div class="slot-icon">🅿️</div>
                     <h3>{{ slot["slot_number"] }}</h3>
                     <p class="status">{{ slot["status"] }}</p>
 
@@ -85,7 +85,8 @@
     </main>
 
     <footer>
-        <p>SmartPark · Smart Parking Management System</p>
-    </footer>
+    <p>SmartPark · Smart Parking Management System</p>
+    <p>Real-time slot status · Simple · Secure · Smart</p>
+</footer>
 </body>
 </html>
