@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | Smart Parking</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>Smart Parking System</h1>
+    <h2>Welcome, {{ name }}!</h2>
+    <p>You have successfully logged in.</p>
+
+    <a href="{{ url_for('parking_slots') }}" class="btn">
+        View Parking Slots →
+    </a>
+
+    {% if is_admin %}
+        <a href="{{ url_for('admin_slots') }}" class="btn btn-secondary">
+            Admin Slot Management
+        </a>
+    {% endif %}
+
+    <br><br>
+    <a href="{{ url_for('logout') }}">Logout</a>
+</body>
+</html>

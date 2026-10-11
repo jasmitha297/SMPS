@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin | Parking Management</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <a class="logo" href="{{ url_for('dashboard') }}">Smart<span>Park</span></a>
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('parking_slots') }}">View Slots</a>
+            <a href="{{ url_for('logout') }}">Logout</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <section class="dashboard-heading">
+            <p class="eyebrow">ADMIN PANEL</p>
+            <h1>Manage Parking Slots</h1>
+            <p>Add, rename, remove, and monitor parking spaces.</p>
+        </section>
+
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="flash">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <section class="card admin-add-card">
+            <h2>Add a New Slot</h2>
+            <form method="POST" class="admin-add-form">
+                <label for="slot_number">Slot ID</label>
+                <input
+                    id="slot_number"
+                    name="slot_number"
+                    placeholder="e.g. D01"
+                    minlength="2"
+                    maxlength="10"
+                    required
+                >
+                <button class="btn" type="submit">Add Slot</button>
+            </form>
+        </section>
+
+        <section class="admin-table-wrap">
+            <h2>All Parking Slots</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Slot</th>
+                        <th>Status</th>
+                        <th>Vehicle</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for slot in slots %}
+                    <tr>
+                        <td>
+                            <form method="POST"
+                                  action="{{ url_for('edit_slot', slot_id=slot['id']) }}"
+                                  class="admin-edit-form">
+                                <input name="slot_number"
+                                       value="{{ slot['slot_number'] }}"
+                                       maxlength="10" required>
+                                <button class="btn" type="submit">Save</button>
+                            </form>
+                        </td>
+                        <td>{{ slot["status"] }}</td>
+                        <td>{{ slot["vehicle_number"] or "—" }}</td>
+                        <td>
+                            {% if slot["status"] == "Occupied" %}
+                                <form method="POST"
+                                      action="{{ url_for('release_slot', slot_id=slot['id']) }}">
+                                    <button class="btn" type="submit">
+                                        Release
+                                    </button>
+                                </form>
+                            {% else %}
+                                <form method="POST"
+                                      action="{{ url_for('delete_slot', slot_id=slot['id']) }}"
+                                      onsubmit="return confirm('Remove this slot?')">
+                                    <button class="btn btn-danger" type="submit">
+                                        Remove
+                                    </button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4">No slots found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </main>
+</body>
+</html>

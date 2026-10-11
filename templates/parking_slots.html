@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parking Slots | SmartPark</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <a class="logo" href="{{ url_for('dashboard') }}">Smart<span>Park</span></a>
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('parking_slots') }}">Parking Slots</a>
+            <a href="{{ url_for('logout') }}">Logout</a>
+        </div>
+    </nav>
+
+    <main class="container parking-page">
+        <section class="parking-heading">
+            <p class="eyebrow">PHASE 2 · PARKING MANAGEMENT</p>
+            <h1>Find Your <span class="gradient-text">Parking Slot</span></h1>
+            <p>Select an available slot and enter your vehicle number to reserve your space.</p>
+        </section>
+
+        <section class="stats-grid">
+            <div class="card">
+                <p>Total Slots</p>
+                <h2 class="stat-number">{{ stats["total"] or 0 }}</h2>
+            </div>
+            <div class="card">
+                <p>Available</p>
+                <h2 class="stat-number">{{ stats["available"] or 0 }}</h2>
+            </div>
+            <div class="card">
+                <p>Occupied</p>
+                <h2 class="stat-number">{{ stats["occupied"] or 0 }}</h2>
+            </div>
+        </section>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category if category in ['success', 'error'] else 'success' }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="parking-legend">
+            <span><i class="legend-dot available-dot"></i> Available</span>
+            <span><i class="legend-dot occupied-dot"></i> Occupied</span>
+        </div>
+
+        <section class="slot-grid">
+            {% for slot in slots %}
+                <article class="slot-card {{ 'available' if slot['status'] == 'Available' else 'occupied' }}">
+                    <div class="slot-icon">P</div>
+                    <h3>{{ slot["slot_number"] }}</h3>
+                    <p class="status">{{ slot["status"] }}</p>
+
+                    {% if slot["status"] == "Available" %}
+                        <form action="{{ url_for('select_slot', slot_id=slot['id']) }}" method="POST">
+                            <label for="vehicle-{{ slot['id'] }}">Vehicle number</label>
+                            <input
+                                id="vehicle-{{ slot['id'] }}"
+                                name="vehicle_number"
+                                type="text"
+                                placeholder="TN 01 AB 1234"
+                                maxlength="15"
+                                required
+                            >
+                            <button class="btn" type="submit">Select Slot</button>
+                        </form>
+                    {% else %}
+                        <p class="vehicle-info">
+                            Vehicle: {{ slot["vehicle_number"] or "Not specified" }}
+                        </p>
+                        <button class="btn" disabled>Occupied</button>
+                    {% endif %}
+                </article>
+            {% else %}
+                <p>No parking slots have been added yet.</p>
+            {% endfor %}
+        </section>
+    </main>
+
+    <footer>
+        <p>SmartPark · Smart Parking Management System</p>
+    </footer>
+</body>
+</html>
