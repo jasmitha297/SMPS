@@ -26,13 +26,18 @@
     <main class="container">
         <section class="dashboard-heading">
             <div>
-                <p class="eyebrow">PHASE 4 · VEHICLE MANAGEMENT</p>
+                <p class="eyebrow">PHASE 4 · VEHICLE MANAGEMENT • PHASE 5 • PHASE 6</p>
                 <h1>Manage Your <span class="gradient-text">Vehicles</span></h1>
-                <p>Register your vehicle details here first to enable one-click slot reservations.</p>
+                <p>Register your vehicle details here to launch <strong>Phase 5 Live Parking Sessions</strong> and calculate <strong>Phase 6 Tariff Billing</strong>.</p>
             </div>
-            <a href="{{ url_for('parking_slots') }}" class="btn">
-                Go to Parking Slots →
-            </a>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <a href="{{ url_for('parking_slots') }}" class="btn">
+                    🅿️ Park Vehicle (Phase 5) →
+                </a>
+                <a href="{{ url_for('admin_pricing') }}" class="btn btn-secondary">
+                    💰 View Tariffs (Phase 6)
+                </a>
+            </div>
         </section>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -146,7 +151,7 @@
 
                                 <div class="vehicle-card-actions">
                                     <a href="{{ url_for('parking_slots') }}" class="btn btn-sm">
-                                        Book Slot
+                                        ⚡ Park Now (Phase 5)
                                     </a>
                                     <form action="{{ url_for('delete_vehicle', vehicle_id=v.id) }}" method="POST"
                                           onsubmit="return confirm('Remove vehicle {{ v.vehicle_number }} from your account?')">
