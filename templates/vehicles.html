@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Vehicles | SmartPark</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <a class="logo" href="{{ url_for('dashboard') }}">Smart<span>Park</span></a>
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('parking_slots') }}">Parking Slots</a>
+            <a href="{{ url_for('vehicles') }}" class="active-nav">My Vehicles</a>
+            <a href="{{ url_for('history') }}">History</a>
+            {% if is_admin %}
+                <a href="{{ url_for('admin_slots') }}">Admin Slots</a>
+            {% endif %}
+            <a href="{{ url_for('logout') }}">Logout</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <section class="dashboard-heading">
+            <div>
+                <p class="eyebrow">PHASE 4 · VEHICLE MANAGEMENT</p>
+                <h1>Manage Your <span class="gradient-text">Vehicles</span></h1>
+                <p>Register your vehicle details here first to enable one-click slot reservations.</p>
+            </div>
+            <a href="{{ url_for('parking_slots') }}" class="btn">
+                Go to Parking Slots →
+            </a>
+        </section>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category if category in ['success', 'error'] else 'success' }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="vehicle-layout">
+            <!-- Registration Form Card -->
+            <section class="card vehicle-form-card">
+                <h2>➕ Register New Vehicle</h2>
+                <p>Add vehicle details to easily select it when booking a parking spot.</p>
+
+                <form action="{{ url_for('vehicles', next=request.args.get('next')) }}" method="POST" class="vehicle-form">
+                    <div>
+                        <label for="vehicle_number">Vehicle Registration Number *</label>
+                        <input
+                            id="vehicle_number"
+                            name="vehicle_number"
+                            type="text"
+                            placeholder="e.g. TN 01 AB 1234 or KA-05-MC-1234"
+                            maxlength="15"
+                            required
+                            autocomplete="off"
+                        >
+                        <small class="field-hint">Use standard registration plate format (alphanumeric letters and numbers).</small>
+                    </div>
+
+                    <div>
+                        <label for="vehicle_type">Vehicle Type *</label>
+                        <select id="vehicle_type" name="vehicle_type" required>
+                            <option value="Car" selected>🚗 Car (Sedan / Hatchback)</option>
+                            <option value="SUV">🚙 SUV / MUV</option>
+                            <option value="Two-Wheeler">🏍️ Motorcycle / Scooter / Two-Wheeler</option>
+                            <option value="EV">⚡ Electric Vehicle (EV)</option>
+                            <option value="Van">🚐 Van / Pickup</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="model">Make & Model</label>
+                        <input
+                            id="model"
+                            name="model"
+                            type="text"
+                            placeholder="e.g. Honda City, Tata Nexon, Yamaha R15"
+                            maxlength="40"
+                        >
+                    </div>
+
+                    <div>
+                        <label for="color">Color</label>
+                        <input
+                            id="color"
+                            name="color"
+                            type="text"
+                            placeholder="e.g. Pearl White, Silver, Black, Blue"
+                            maxlength="30"
+                        >
+                    </div>
+
+                    <button class="btn" type="submit" style="width: 100%; margin-top: 15px;">
+                        Save & Register Vehicle →
+                    </button>
+                </form>
+            </section>
+
+            <!-- Saved Vehicles List -->
+            <section class="vehicles-list-section">
+                <div class="list-header">
+                    <h2>Your Registered Vehicles ({{ vehicles|length }})</h2>
+                    <p>Select any of these registered vehicles when booking parking slots.</p>
+                </div>
+
+                {% if vehicles %}
+                    <div class="vehicle-grid">
+                        {% for v in vehicles %}
+                            <article class="vehicle-card">
+                                <div class="vehicle-card-top">
+                                    <span class="vehicle-type-icon">
+                                        {% if v.vehicle_type == 'Two-Wheeler' %}🏍️
+                                        {% elif v.vehicle_type == 'SUV' %}🚙
+                                        {% elif v.vehicle_type == 'EV' %}⚡
+                                        {% elif v.vehicle_type == 'Van' %}🚐
+                                        {% else %}🚗{% endif %}
+                                    </span>
+                                    <span class="vehicle-type-tag">{{ v.vehicle_type }}</span>
+                                </div>
+
+                                <div class="plate-container">
+                                    <div class="plate-badge">
+                                        <div class="plate-ind">IND</div>
+                                        <div class="plate-number">{{ v.vehicle_number }}</div>
+                                    </div>
+                                </div>
+
+                                <div class="vehicle-details">
+                                    <p><strong>Model:</strong> {{ v.model or "Not specified" }}</p>
+                                    <p><strong>Color:</strong> {{ v.color or "Not specified" }}</p>
+                                    <p class="date-added"><strong>Added:</strong> {{ v.created_at|format_dt }}</p>
+                                </div>
+
+                                {% if v.has_active_booking %}
+                                    <div class="active-tag-banner">
+                                        🅿️ Currently Reserved in Slot
+                                    </div>
+                                {% endif %}
+
+                                <div class="vehicle-card-actions">
+                                    <a href="{{ url_for('parking_slots') }}" class="btn btn-sm">
+                                        Book Slot
+                                    </a>
+                                    <form action="{{ url_for('delete_vehicle', vehicle_id=v.id) }}" method="POST"
+                                          onsubmit="return confirm('Remove vehicle {{ v.vehicle_number }} from your account?')">
+                                        <button class="btn btn-danger btn-sm" type="submit">
+                                            Delete
+                                        </button>
+                                    </form>
+                                </div>
+                            </article>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="card empty-state">
+                        <div class="empty-icon">🚗</div>
+                        <h3>No Vehicles Registered Yet</h3>
+                        <p>You must register at least one vehicle before you can reserve a parking slot. Use the registration form to add your first vehicle.</p>
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+    </main>
+
+    <footer>
+        <p>SmartPark · Smart Parking Management System</p>
+        <p>Vehicle Management & Parking Availability System</p>
+    </footer>
+</body>
+</html>

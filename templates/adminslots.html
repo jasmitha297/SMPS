@@ -11,22 +11,30 @@
         <a class="logo" href="{{ url_for('dashboard') }}">Smart<span>Park</span></a>
         <div class="nav-links">
             <a href="{{ url_for('dashboard') }}">Dashboard</a>
-            <a href="{{ url_for('parking_slots') }}">View Slots</a>
+            <a href="{{ url_for('parking_slots') }}">Parking Slots</a>
+            <a href="{{ url_for('vehicles') }}">My Vehicles</a>
+            <a href="{{ url_for('history') }}">History</a>
+            <a href="{{ url_for('admin_slots') }}" class="active-nav">Admin Slots</a>
             <a href="{{ url_for('logout') }}">Logout</a>
         </div>
     </nav>
 
     <main class="container">
         <section class="dashboard-heading">
-            <p class="eyebrow">ADMIN PANEL</p>
-            <h1>Manage Parking Slots</h1>
-            <p>Add, rename, remove, and monitor parking spaces.</p>
+            <div>
+                <p class="eyebrow">ADMIN PANEL</p>
+                <h1>Manage Parking Slots</h1>
+                <p>Add, rename, release, remove, and monitor parking spaces.</p>
+            </div>
+            <a href="{{ url_for('history', view='all') }}" class="btn btn-secondary">
+                View All System Reservations →
+            </a>
         </section>
 
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                {% for message in messages %}
-                    <div class="flash">{{ message }}</div>
+                {% for category, message in messages %}
+                    <div class="flash {{ category if category in ['success', 'error'] else 'success' }}">{{ message }}</div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
@@ -48,13 +56,14 @@
         </section>
 
         <section class="admin-table-wrap">
-            <h2>All Parking Slots</h2>
+            <h2>All Parking Slots ({{ slots|length }})</h2>
             <table>
                 <thead>
                     <tr>
                         <th>Slot</th>
                         <th>Status</th>
                         <th>Vehicle</th>
+                        <th>Booked By</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -68,24 +77,36 @@
                                 <input name="slot_number"
                                        value="{{ slot['slot_number'] }}"
                                        maxlength="10" required>
-                                <button class="btn" type="submit">Save</button>
+                                <button class="btn btn-sm" type="submit">Save</button>
                             </form>
                         </td>
-                        <td>{{ slot["status"] }}</td>
+                        <td>
+                            <span class="status-pill {{ 'status-active' if slot['status'] == 'Available' else 'status-cancelled' }}">
+                                {{ slot["status"] }}
+                            </span>
+                        </td>
                         <td>{{ slot["vehicle_number"] or "—" }}</td>
+                        <td>
+                            {% if slot["booked_by_name"] %}
+                                <strong>{{ slot["booked_by_name"] }}</strong><br>
+                                <small style="color: var(--muted);">{{ slot["booked_by_email"] }}</small>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
                         <td>
                             {% if slot["status"] == "Occupied" %}
                                 <form method="POST"
                                       action="{{ url_for('release_slot', slot_id=slot['id']) }}">
-                                    <button class="btn" type="submit">
-                                        Release
+                                    <button class="btn btn-sm" type="submit">
+                                        Release Slot
                                     </button>
                                 </form>
                             {% else %}
                                 <form method="POST"
                                       action="{{ url_for('delete_slot', slot_id=slot['id']) }}"
                                       onsubmit="return confirm('Remove this slot?')">
-                                    <button class="btn btn-danger" type="submit">
+                                    <button class="btn btn-danger btn-sm" type="submit">
                                         Remove
                                     </button>
                                 </form>
@@ -94,12 +115,16 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="4">No slots found.</td>
+                        <td colspan="5">No slots found.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </section>
     </main>
+
+    <footer>
+        <p>SmartPark · Smart Parking Management System</p>
+    </footer>
 </body>
 </html>

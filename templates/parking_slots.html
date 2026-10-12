@@ -11,30 +11,35 @@
         <a class="logo" href="{{ url_for('dashboard') }}">Smart<span>Park</span></a>
         <div class="nav-links">
             <a href="{{ url_for('dashboard') }}">Dashboard</a>
-            <a href="{{ url_for('parking_slots') }}">Parking Slots</a>
+            <a href="{{ url_for('parking_slots') }}" class="active-nav">Parking Slots</a>
+            <a href="{{ url_for('vehicles') }}">My Vehicles</a>
+            <a href="{{ url_for('history') }}">History</a>
+            {% if is_admin %}
+                <a href="{{ url_for('admin_slots') }}">Admin Slots</a>
+            {% endif %}
             <a href="{{ url_for('logout') }}">Logout</a>
         </div>
     </nav>
 
     <main class="container parking-page">
         <section class="parking-heading">
-            <p class="eyebrow">PHASE 2 · PARKING MANAGEMENT</p>
+            <p class="eyebrow">PHASE 2 & 3 · SLOT BOOKING & RESERVATION</p>
             <h1>Find Your <span class="gradient-text">Parking Slot</span></h1>
-            <p>Explore parking availability, select a free slot, and update its status.</p>
+            <p>Select your registered vehicle, choose a duration, and reserve your parking slot in real time.</p>
         </section>
 
         <section class="stats-grid">
-            <div class="card">
+            <div class="card stat-card">
                 <p>Total Slots</p>
                 <h2 class="stat-number">{{ stats["total"] or 0 }}</h2>
             </div>
-            <div class="card">
-                <p>Available</p>
-                <h2 class="stat-number">{{ stats["available"] or 0 }}</h2>
+            <div class="card stat-card">
+                <p>Available Slots</p>
+                <h2 class="stat-number stat-green">{{ stats["available"] or 0 }}</h2>
             </div>
-            <div class="card">
-                <p>Occupied</p>
-                <h2 class="stat-number">{{ stats["occupied"] or 0 }}</h2>
+            <div class="card stat-card">
+                <p>Occupied Slots</p>
+                <h2 class="stat-number stat-red">{{ stats["occupied"] or 0 }}</h2>
             </div>
         </section>
 
@@ -46,36 +51,113 @@
             {% endif %}
         {% endwith %}
 
+        <!-- Phase 4 Pre-requisite Notice: Vehicle Registration Required -->
+        {% if user_vehicles|length == 0 %}
+            <div class="alert-banner alert-warning">
+                <div class="alert-content">
+                    <span class="alert-icon">⚠️</span>
+                    <div>
+                        <strong>Vehicle Registration Required First</strong>
+                        <p>To reserve a parking slot, you must have at least one vehicle registered in your account.</p>
+                    </div>
+                </div>
+                <a href="{{ url_for('vehicles', next='parking_slots') }}" class="btn">
+                    Register Vehicle Now →
+                </a>
+            </div>
+        {% else %}
+            <div class="alert-banner alert-info">
+                <div class="alert-content">
+                    <span class="alert-icon">🚗</span>
+                    <div>
+                        <strong>Ready to Book</strong>
+                        <p>You have {{ user_vehicles|length }} registered vehicle(s) ready for slot reservation.</p>
+                    </div>
+                </div>
+                <a href="{{ url_for('vehicles') }}" class="btn btn-secondary btn-sm">
+                    + Register Another Vehicle
+                </a>
+            </div>
+        {% endif %}
+
         <div class="parking-legend">
             <span><i class="legend-dot available-dot"></i> Available</span>
             <span><i class="legend-dot occupied-dot"></i> Occupied</span>
+            <span><i class="legend-dot my-booking-dot"></i> Reserved by You</span>
         </div>
 
         <section class="slot-grid">
             {% for slot in slots %}
-                <article class="slot-card {{ 'available' if slot['status'] == 'Available' else 'occupied' }}">
-                    <div class="slot-icon">🅿️</div>
+                {% set is_my_booking = (slot['id'] in user_active_slots) or (slot['booked_by'] == session['user_id'] and slot['status'] == 'Occupied') %}
+                <article class="slot-card {{ 'my-reserved' if is_my_booking else ('available' if slot['status'] == 'Available' else 'occupied') }}">
+                    <div class="slot-card-header">
+                        <div class="slot-icon">🅿️</div>
+                        {% if is_my_booking %}
+                            <span class="my-booking-badge">Your Reservation</span>
+                        {% endif %}
+                    </div>
+
                     <h3>{{ slot["slot_number"] }}</h3>
-                    <p class="status">{{ slot["status"] }}</p>
+                    <p class="status">
+                        {% if is_my_booking %}
+                            Reserved by You
+                        {% else %}
+                            {{ slot["status"] }}
+                        {% endif %}
+                    </p>
 
                     {% if slot["status"] == "Available" %}
-                        <form action="{{ url_for('select_slot', slot_id=slot['id']) }}" method="POST">
-                            <label for="vehicle-{{ slot['id'] }}">Vehicle number</label>
-                            <input
-                                id="vehicle-{{ slot['id'] }}"
-                                name="vehicle_number"
-                                type="text"
-                                placeholder="TN 01 AB 1234"
-                                maxlength="15"
-                                required
-                            >
-                            <button class="btn" type="submit">Select Slot</button>
-                        </form>
+                        {% if user_vehicles|length > 0 %}
+                            <form action="{{ url_for('select_slot', slot_id=slot['id']) }}" method="POST" class="slot-booking-form">
+                                <label for="vehicle-{{ slot['id'] }}">Select Your Vehicle *</label>
+                                <select id="vehicle-{{ slot['id'] }}" name="vehicle_id" required>
+                                    {% for v in user_vehicles %}
+                                        <option value="{{ v.id }}" {{ 'disabled' if v.has_active_booking else '' }}>
+                                            {{ v.vehicle_number }} ({{ v.vehicle_type }}{% if v.model %} - {{ v.model }}{% endif %})
+                                            {% if v.has_active_booking %} [Active elsewhere]{% endif %}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+
+                                <label for="duration-{{ slot['id'] }}">Duration</label>
+                                <select id="duration-{{ slot['id'] }}" name="duration">
+                                    <option value="1">1 Hour</option>
+                                    <option value="2" selected>2 Hours</option>
+                                    <option value="4">4 Hours</option>
+                                    <option value="8">8 Hours</option>
+                                    <option value="24">Full Day (24 hrs)</option>
+                                </select>
+
+                                <button class="btn" type="submit">
+                                    Confirm Reservation →
+                                </button>
+                            </form>
+                        {% else %}
+                            <div class="slot-action-prompt">
+                                <p class="prompt-text">Register a vehicle first to reserve this slot.</p>
+                                <a href="{{ url_for('vehicles', next='parking_slots') }}" class="btn btn-secondary">
+                                    Register Vehicle
+                                </a>
+                            </div>
+                        {% endif %}
                     {% else %}
-                        <p class="vehicle-info">
-                            Vehicle: {{ slot["vehicle_number"] or "Not specified" }}
-                        </p>
-                        <button class="btn" disabled>Occupied</button>
+                        <!-- Occupied Slot -->
+                        <div class="vehicle-info-box">
+                            <span class="vehicle-plate-text">
+                                {{ slot["vehicle_number"] or "Occupied" }}
+                            </span>
+                        </div>
+
+                        {% if is_my_booking and slot['id'] in user_active_slots %}
+                            <form action="{{ url_for('cancel_booking', booking_id=user_active_slots[slot['id']]['booking_id']) }}" method="POST"
+                                  onsubmit="return confirm('Are you sure you want to cancel this reservation for slot {{ slot.slot_number }}?')">
+                                <button class="btn btn-danger" type="submit" style="width: 100%;">
+                                    Cancel Reservation
+                                </button>
+                            </form>
+                        {% else %}
+                            <button class="btn" disabled>Slot Occupied</button>
+                        {% endif %}
                     {% endif %}
                 </article>
             {% else %}
@@ -85,8 +167,8 @@
     </main>
 
     <footer>
-    <p>SmartPark · Smart Parking Management System</p>
-    <p>Real-time slot status · Simple · Secure · Smart</p>
-</footer>
+        <p>SmartPark · Smart Parking Management System</p>
+        <p>Phase 3: Booking & Reservation System with Phase 4 Vehicle Management</p>
+    </footer>
 </body>
 </html>
