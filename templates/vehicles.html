@@ -13,9 +13,13 @@
             <a href="{{ url_for('dashboard') }}">Dashboard</a>
             <a href="{{ url_for('parking_slots') }}">Parking Slots</a>
             <a href="{{ url_for('vehicles') }}" class="active-nav">My Vehicles</a>
+            {% if current_active_session %}
+                <a href="{{ url_for('active_session_view') }}" class="nav-live-pill">Active Session ⏱️</a>
+            {% endif %}
             <a href="{{ url_for('history') }}">History</a>
             {% if is_admin %}
                 <a href="{{ url_for('admin_slots') }}">Admin Slots</a>
+                <a href="{{ url_for('admin_pricing') }}">Pricing</a>
             {% endif %}
             <a href="{{ url_for('logout') }}">Logout</a>
         </div>

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pricing Management | SmartPark Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <a class="logo" href="{{ url_for('dashboard') }}">Smart<span>Park</span></a>
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('parking_slots') }}">Parking Slots</a>
+            <a href="{{ url_for('vehicles') }}">My Vehicles</a>
+            {% if current_active_session %}
+                <a href="{{ url_for('active_session_view') }}" class="nav-live-pill">Active Session ⏱️</a>
+            {% endif %}
+            <a href="{{ url_for('history') }}">History</a>
+            <a href="{{ url_for('admin_slots') }}">Admin Slots</a>
+            <a href="{{ url_for('admin_pricing') }}" class="active-nav">Pricing</a>
+            <a href="{{ url_for('logout') }}">Logout</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <section class="dashboard-heading">
+            <div>
+                <p class="eyebrow">PHASE 6 · PRICING & TARIFF CONFIGURATION</p>
+                <h1>Manage Pricing <span class="gradient-text">Rules</span></h1>
+                <p>Configure hourly parking rates, minimum thresholds, and vehicle category tariffs dynamically.</p>
+            </div>
+            <div class="heading-actions">
+                <a href="{{ url_for('admin_slots') }}" class="btn btn-secondary">
+                    Admin Slots →
+                </a>
+            </div>
+        </section>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category if category in ['success', 'error'] else 'success' }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Add New Pricing Rule Card (Task 6.2 & 6.5) -->
+        <section class="card admin-add-card">
+            <h2>➕ Add New Pricing Rule</h2>
+            <p>Define a new tariff rate based on vehicle classification or general policy.</p>
+
+            <form method="POST" action="{{ url_for('admin_pricing') }}" class="admin-pricing-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="rule_name">Rule Name *</label>
+                        <input id="rule_name" name="rule_name" placeholder="e.g. Peak Hours Rate" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="vehicle_type">Vehicle Category *</label>
+                        <select id="vehicle_type" name="vehicle_type" required>
+                            <option value="All">All Vehicles (Universal Fallback)</option>
+                            <option value="Car" selected>Car (Sedan / Hatchback)</option>
+                            <option value="Two-Wheeler">Two-Wheeler (Bike / Scooter)</option>
+                            <option value="SUV">SUV / Heavy Vehicle</option>
+                            <option value="EV">Electric Vehicle (EV)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="hourly_rate">Hourly Rate (₹) *</label>
+                        <input id="hourly_rate" name="hourly_rate" type="number" step="0.5" min="0" placeholder="30.00" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="minimum_charge">Minimum Charge (₹)</label>
+                        <input id="minimum_charge" name="minimum_charge" type="number" step="0.5" min="0" value="30.00">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="rounding_policy">Rounding Policy</label>
+                        <select id="rounding_policy" name="rounding_policy">
+                            <option value="ceiling_hour" selected>Ceiling Hour (Any started hour = 1 full hr)</option>
+                            <option value="half_hour">Half-Hour (30-min intervals)</option>
+                            <option value="exact_minute">Exact Minute Prorated</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button class="btn" type="submit" style="margin-top: 15px;">
+                    Create Pricing Rule →
+                </button>
+            </form>
+        </section>
+
+        <!-- Existing Pricing Rules Table -->
+        <section class="card history-table-card">
+            <div class="history-table-header">
+                <h2>Configured Pricing Rules ({{ rules|length }})</h2>
+                <p>Active rules are automatically resolved during new parking session creation.</p>
+            </div>
+
+            <div class="admin-table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Rule Name</th>
+                            <th>Vehicle Category</th>
+                            <th>Hourly Rate</th>
+                            <th>Min Charge</th>
+                            <th>Rounding Policy</th>
+                            <th>Status</th>
+                            <th>Quick Rate Edit</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rules %}
+                            <tr>
+                                <td>#{{ r.id }}</td>
+                                <td><strong>{{ r.rule_name }}</strong></td>
+                                <td>
+                                    <span class="plate-mini">{{ r.vehicle_type }}</span>
+                                </td>
+                                <td>
+                                    <strong class="stat-green">₹{{ "%.2f"|format(r.hourly_rate) }}</strong> / hr
+                                </td>
+                                <td>₹{{ "%.2f"|format(r.minimum_charge) }}</td>
+                                <td>
+                                    <small>{{ r.rounding_policy }}</small>
+                                </td>
+                                <td>
+                                    {% if r.is_active %}
+                                        <span class="status-pill status-active">● Active</span>
+                                    {% else %}
+                                        <span class="status-pill status-cancelled">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <!-- Quick update rate form -->
+                                    <form action="{{ url_for('admin_pricing_edit', rule_id=r.id) }}" method="POST" class="inline-edit-form">
+                                        <input type="number" name="hourly_rate" step="0.5" min="0" value="{{ r.hourly_rate }}" style="width: 70px; padding: 5px;" required>
+                                        <button type="submit" class="btn btn-sm" title="Save new hourly rate">Save</button>
+                                    </form>
+                                </td>
+                                <td>
+                                    <form action="{{ url_for('admin_pricing_toggle', rule_id=r.id) }}" method="POST">
+                                        {% if r.is_active %}
+                                            <button type="submit" class="btn btn-sm btn-danger">Deactivate</button>
+                                        {% else %}
+                                            <button type="submit" class="btn btn-sm btn-secondary">Activate</button>
+                                        {% endif %}
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>SmartPark · Smart Parking Management System</p>
+        <p>Phase 6: Billing and Pricing Administration</p>
+    </footer>
+</body>
+</html>

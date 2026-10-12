@@ -1501,3 +1501,696 @@ footer {
         margin: 0 auto;
     }
 }
+
+/* ==========================================================================
+   PHASE 5 & 6 ENHANCEMENTS: LIVE TIMER, SESSIONS, BILLING & PRICING
+   ========================================================================== */
+
+/* Active Live Navbar Indicator */
+.nav-live-pill {
+    background: rgba(63, 224, 160, 0.15) !important;
+    color: var(--green) !important;
+    border: 1px solid rgba(63, 224, 160, 0.35);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+
+.nav-live-pill:hover {
+    background: rgba(63, 224, 160, 0.25) !important;
+    color: white !important;
+    box-shadow: 0 0 15px rgba(63, 224, 160, 0.3);
+}
+
+.pulse-indicator {
+    width: 10px;
+    height: 10px;
+    background-color: var(--green);
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: 0 0 0 rgba(63, 224, 160, 0.7);
+    animation: pulseGlow 1.8s infinite;
+}
+
+@keyframes pulseGlow {
+    0% {
+        box-shadow: 0 0 0 0 rgba(63, 224, 160, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(63, 224, 160, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(63, 224, 160, 0);
+    }
+}
+
+/* Phase 5 Active Session Layout */
+.session-active-container {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 25px;
+    margin-top: 15px;
+}
+
+.session-main-card {
+    padding: 30px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.session-header-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 16px;
+}
+
+.session-badge-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.session-details-grid {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 20px;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+}
+
+.session-slot-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(145deg, #16365f, #0d213a);
+    border: 2px solid var(--blue);
+    border-radius: 12px;
+    padding: 14px 10px;
+    text-align: center;
+}
+
+.slot-box-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--cyan);
+    letter-spacing: 0.5px;
+}
+
+.slot-box-number {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: white;
+    line-height: 1.1;
+    margin: 4px 0;
+}
+
+.slot-box-status {
+    font-size: 0.75rem;
+    color: var(--green);
+    font-weight: 600;
+}
+
+.vehicle-plate-large {
+    display: inline-block;
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: white;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-left: 5px solid var(--cyan);
+    padding: 6px 14px;
+    border-radius: 8px;
+    letter-spacing: 1px;
+    font-family: monospace;
+}
+
+.vehicle-meta-large {
+    font-size: 0.95rem;
+    color: var(--muted);
+    margin: 6px 0 10px;
+}
+
+.session-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+.meta-item strong {
+    color: var(--text);
+}
+
+/* Live Timer Clock Widget (Task 5.4) */
+.live-timer-widget {
+    background: radial-gradient(circle at center, #0e2746 0%, #071424 100%);
+    border: 1px solid rgba(56, 217, 214, 0.35);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), inset 0 0 20px rgba(56, 217, 214, 0.1);
+    border-radius: 16px;
+    padding: 24px;
+    text-align: center;
+}
+
+.timer-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--cyan);
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.timer-clock {
+    font-size: clamp(2.6rem, 6vw, 4rem);
+    font-family: 'Courier New', Courier, monospace;
+    font-weight: 800;
+    color: #4df3c5;
+    text-shadow: 0 0 25px rgba(77, 243, 197, 0.45);
+    letter-spacing: 3px;
+    line-height: 1.1;
+    margin: 8px 0;
+}
+
+.timer-caption {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.elapsed-human-text {
+    color: var(--cyan);
+    font-weight: 600;
+}
+
+/* Live Billing Preview (Task 6.1) */
+.live-billing-preview {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.billing-preview-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.billing-preview-item.highlight {
+    border-left: 2px solid var(--green);
+    padding-left: 14px;
+}
+
+.preview-label {
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.preview-value {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.price-highlight {
+    color: var(--green);
+    font-size: 1.35rem;
+}
+
+.policy-note {
+    background: rgba(67, 140, 255, 0.08);
+    border-left: 3px solid var(--blue);
+    padding: 10px 14px;
+    border-radius: 0 8px 8px 0;
+    font-size: 0.84rem;
+}
+
+.session-actions-bar {
+    margin-top: 5px;
+}
+
+.session-end-btn {
+    width: 100%;
+    padding: 16px 24px;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.session-info-aside {
+    padding: 24px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.session-guide-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.session-guide-list li strong {
+    display: block;
+    color: var(--cyan);
+    font-size: 0.92rem;
+    margin-bottom: 3px;
+}
+
+.session-guide-list li p {
+    font-size: 0.85rem;
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.45;
+}
+
+/* Phase 6 Invoice Styles (Task 6.1 & 6.6) */
+.invoice-wrapper {
+    max-width: 860px;
+    margin: 0 auto;
+}
+
+.invoice-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 36px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+
+.invoice-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.invoice-brand {
+    font-size: 1.8rem;
+    font-weight: 800;
+}
+
+.invoice-brand span {
+    color: var(--cyan);
+}
+
+.invoice-subtext {
+    font-size: 0.88rem;
+    color: var(--muted);
+    margin-top: 4px;
+}
+
+.invoice-meta-top {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-end;
+}
+
+.invoice-number-badge {
+    font-family: monospace;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--cyan);
+    background: rgba(56, 217, 214, 0.1);
+    border: 1px solid rgba(56, 217, 214, 0.25);
+    padding: 6px 12px;
+    border-radius: 6px;
+}
+
+.invoice-divider {
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 24px 0;
+}
+
+.invoice-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin-bottom: 25px;
+}
+
+.invoice-info-col h3 {
+    font-size: 0.95rem;
+    color: var(--cyan);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.invoice-meta-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.invoice-meta-table td {
+    padding: 5px 0;
+    font-size: 0.88rem;
+    color: var(--muted);
+}
+
+.invoice-meta-table td:last-child {
+    color: var(--text);
+    text-align: right;
+}
+
+.plate-text-pill {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-family: monospace;
+    border: 1px solid var(--border);
+}
+
+.invoice-items-section {
+    margin: 25px 0;
+}
+
+.invoice-items-section h3 {
+    font-size: 1rem;
+    margin-bottom: 12px;
+}
+
+.invoice-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.invoice-table th,
+.invoice-table td {
+    padding: 14px 18px;
+    font-size: 0.9rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.invoice-table th {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--muted);
+    font-weight: 600;
+    text-align: left;
+}
+
+.invoice-totals-wrapper {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 25px;
+    margin: 25px 0;
+    align-items: start;
+}
+
+.invoice-policy-explanation {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 0.82rem;
+    color: var(--muted);
+}
+
+.invoice-totals-card {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+}
+
+.totals-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 0.9rem;
+    color: var(--muted);
+}
+
+.totals-divider {
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 10px 0;
+}
+
+.final-total-row {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: white;
+}
+
+.final-price {
+    color: var(--green);
+    font-size: 1.4rem;
+}
+
+.payment-action-box {
+    margin-top: 25px;
+    background: rgba(67, 140, 255, 0.06);
+    border: 1px solid rgba(67, 140, 255, 0.25);
+    border-radius: 14px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.payment-notice {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.notice-icon {
+    font-size: 1.8rem;
+}
+
+.payment-notice h4 {
+    font-size: 1rem;
+    margin-bottom: 2px;
+}
+
+.payment-notice p {
+    font-size: 0.85rem;
+    margin: 0;
+    color: var(--muted);
+}
+
+.payment-button-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+/* History Tabs & Controls */
+.history-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    border-radius: 14px;
+}
+
+.history-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.tab-btn {
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.tab-btn.active-tab {
+    background: var(--blue);
+    color: white;
+    border-color: var(--blue);
+}
+
+.history-filter-form {
+    display: flex;
+    align-items: center;
+}
+
+.filter-inputs {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.search-input {
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.85rem;
+}
+
+.filter-select {
+    padding: 8px 10px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.85rem;
+}
+
+/* Type Pills */
+.type-pill {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.session-type-pill {
+    background: rgba(63, 224, 160, 0.15);
+    color: var(--green);
+    border: 1px solid rgba(63, 224, 160, 0.3);
+}
+
+.booking-type-pill {
+    background: rgba(67, 140, 255, 0.15);
+    color: var(--cyan);
+    border: 1px solid rgba(67, 140, 255, 0.3);
+}
+
+.live-active-tag {
+    color: var(--green);
+    font-weight: 700;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.fee-text {
+    color: var(--green);
+    font-weight: 700;
+}
+
+.btn-success {
+    background: #2e9f6e;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #3fe0a0;
+    color: #07111f;
+}
+
+/* Admin Pricing Styles */
+.admin-pricing-form .form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.inline-edit-form {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+/* Print Media Query */
+@media print {
+    body {
+        background: white !important;
+        color: black !important;
+    }
+    .no-print, .navbar, footer {
+        display: none !important;
+    }
+    .invoice-card {
+        border: none !important;
+        box-shadow: none !important;
+        background: white !important;
+        color: black !important;
+        padding: 0 !important;
+    }
+    .invoice-brand, .final-price, .invoice-info-col h3 {
+        color: black !important;
+    }
+    .invoice-table th {
+        background: #eee !important;
+        color: black !important;
+    }
+    .invoice-table td {
+        color: black !important;
+    }
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    .session-active-container {
+        grid-template-columns: 1fr;
+    }
+    .session-details-grid {
+        grid-template-columns: 1fr;
+        text-align: center;
+    }
+    .live-billing-preview {
+        grid-template-columns: 1fr;
+    }
+    .invoice-info-grid {
+        grid-template-columns: 1fr;
+    }
+    .invoice-totals-wrapper {
+        grid-template-columns: 1fr;
+    }
+    .history-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .filter-inputs {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

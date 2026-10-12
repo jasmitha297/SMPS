@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Billing Summary | SmartPark</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar no-print">
+        <a class="logo" href="{{ url_for('dashboard') }}">Smart<span>Park</span></a>
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('parking_slots') }}">Parking Slots</a>
+            <a href="{{ url_for('vehicles') }}">My Vehicles</a>
+            {% if current_active_session %}
+                <a href="{{ url_for('active_session_view') }}" class="nav-live-pill">Active Session ⏱️</a>
+            {% endif %}
+            <a href="{{ url_for('history') }}">History</a>
+            {% if is_admin %}
+                <a href="{{ url_for('admin_slots') }}">Admin Slots</a>
+                <a href="{{ url_for('admin_pricing') }}">Pricing</a>
+            {% endif %}
+            <a href="{{ url_for('logout') }}">Logout</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <section class="dashboard-heading no-print">
+            <div>
+                <p class="eyebrow">PHASE 6 · BILLING & PRICING</p>
+                <h1>Parking <span class="gradient-text">Billing Summary</span></h1>
+                <p>Complete fee breakdown, session audit timestamps, and billing receipt.</p>
+            </div>
+            <div class="heading-actions">
+                <button onclick="window.print()" class="btn btn-secondary">
+                    🖨️ Print / Save Receipt
+                </button>
+                <a href="{{ url_for('history') }}" class="btn">
+                    View History →
+                </a>
+            </div>
+        </section>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category if category in ['success', 'error'] else 'success' }} no-print">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="invoice-wrapper">
+            <article class="card invoice-card">
+                <!-- Invoice Header -->
+                <div class="invoice-header">
+                    <div>
+                        <div class="invoice-brand">Smart<span>Park</span></div>
+                        <p class="invoice-subtext">Official Parking Fee Invoice & Session Summary</p>
+                    </div>
+                    <div class="invoice-meta-top">
+                        <span class="invoice-number-badge">REF: {{ bill.bill_reference }}</span>
+                        <div class="payment-badge-wrap">
+                            {% if bill.payment_status == 'Paid' %}
+                                <span class="status-pill status-active">✓ Paid</span>
+                            {% else %}
+                                <span class="status-pill status-cancelled" style="background: rgba(255, 179, 0, 0.15); color: #ffb300; border-color: rgba(255, 179, 0, 0.3);">
+                                    ⏳ {{ bill.payment_status }}
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="invoice-divider">
+
+                <!-- 2-Column Info Grid -->
+                <div class="invoice-info-grid">
+                    <div class="invoice-info-col">
+                        <h3>Customer & Vehicle Information</h3>
+                        <table class="invoice-meta-table">
+                            <tr>
+                                <td>Billed To:</td>
+                                <td><strong>{{ bill.user_name }}</strong> ({{ bill.user_email }})</td>
+                            </tr>
+                            <tr>
+                                <td>Vehicle Plate:</td>
+                                <td><strong class="plate-text-pill">{{ bill.vehicle_number }}</strong></td>
+                            </tr>
+                            <tr>
+                                <td>Vehicle Details:</td>
+                                <td>{{ bill.vehicle_type or 'Car' }}{% if bill.model %} · {{ bill.model }}{% endif %}{% if bill.color %} ({{ bill.color }}){% endif %}</td>
+                            </tr>
+                            <tr>
+                                <td>Parking Slot:</td>
+                                <td><span class="slot-badge-text">Slot {{ bill.slot_number }}</span></td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div class="invoice-info-col">
+                        <h3>Session & Timing Details</h3>
+                        <table class="invoice-meta-table">
+                            <tr>
+                                <td>Session Code:</td>
+                                <td><code>{{ bill.session_code }}</code></td>
+                            </tr>
+                            <tr>
+                                <td>Entry Time:</td>
+                                <td><strong>{{ bill.entry_time|format_dt }}</strong></td>
+                            </tr>
+                            <tr>
+                                <td>Exit Time:</td>
+                                <td><strong>{{ bill.exit_time|format_dt }}</strong></td>
+                            </tr>
+                            <tr>
+                                <td>Total Duration:</td>
+                                <td><strong class="text-highlight">{{ bill.duration_minutes|format_duration }}</strong> ({{ bill.duration_minutes }} minutes)</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Fee Breakdown Line Items (Task 6.1 & 6.6) -->
+                <div class="invoice-items-section">
+                    <h3>Itemized Fee Breakdown</h3>
+                    <div class="admin-table-wrap">
+                        <table class="invoice-table">
+                            <thead>
+                                <tr>
+                                    <th>Description</th>
+                                    <th>Pricing Rule</th>
+                                    <th>Hourly Rate</th>
+                                    <th>Billed Interval</th>
+                                    <th style="text-align: right;">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        <strong>Parking Space Occupancy</strong><br>
+                                        <small class="muted-text">Slot {{ bill.slot_number }} · {{ bill.duration_minutes }} mins actual duration</small>
+                                    </td>
+                                    <td>{{ bill.pricing_rule_name }}</td>
+                                    <td>₹{{ "%.2f"|format(bill.hourly_rate) }} / hr</td>
+                                    <td>
+                                        <strong>{{ bill.billed_hours }} hour{{ 's' if bill.billed_hours > 1 else '' }}</strong><br>
+                                        <small class="muted-text">Ceiling hourly rounding</small>
+                                    </td>
+                                    <td style="text-align: right; font-weight: 600;">
+                                        ₹{{ "%.2f"|format(bill.subtotal) }}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Calculation Summary Totals -->
+                <div class="invoice-totals-wrapper">
+                    <div class="invoice-policy-explanation">
+                        <p><strong>Pricing & Billing Policy Note:</strong></p>
+                        <p>Fees are calculated at the rate of <strong>₹{{ "%.2f"|format(bill.hourly_rate) }}/hour</strong>. In accordance with the standard parking billing rules, any started hour is rounded to the next full hour (ceiling rounding). Parking slot <strong>{{ bill.slot_number }}</strong> has been officially released and made available for other users.</p>
+                    </div>
+
+                    <div class="invoice-totals-card">
+                        <div class="totals-row">
+                            <span>Subtotal:</span>
+                            <span>₹{{ "%.2f"|format(bill.subtotal) }}</span>
+                        </div>
+                        <div class="totals-row">
+                            <span>Taxes / Surcharges:</span>
+                            <span>₹0.00</span>
+                        </div>
+                        <div class="totals-row">
+                            <span>Discounts:</span>
+                            <span>₹0.00</span>
+                        </div>
+                        <hr class="totals-divider">
+                        <div class="totals-row final-total-row">
+                            <span>Total Payable:</span>
+                            <span class="final-price">₹{{ "%.2f"|format(bill.final_amount) }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Phase 7 Payment Stage Callout (Task 6.7) -->
+                <div class="payment-action-box no-print">
+                    <div class="payment-notice">
+                        <div class="notice-icon">💳</div>
+                        <div>
+                            <h4>Payment Processing Status</h4>
+                            <p>Phase 7 is dedicated to full Payment Gateway integration. Your session is completed and the slot has already been safely released.</p>
+                        </div>
+                    </div>
+
+                    <div class="payment-button-group">
+                        {% if bill.payment_status != 'Paid' %}
+                            <form action="{{ url_for('pay_bill', bill_id=bill.id) }}" method="POST">
+                                <button type="submit" class="btn btn-success btn-lg">
+                                    💳 Pay Bill Now (Simulate Phase 7) →
+                                </button>
+                            </form>
+                        {% else %}
+                            <button class="btn btn-secondary btn-lg" disabled>
+                                ✓ Payment Completed
+                            </button>
+                        {% endif %}
+                        <a href="{{ url_for('history') }}" class="btn btn-secondary btn-lg">
+                            Go to Parking History →
+                        </a>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary btn-lg">
+                            Dashboard
+                        </a>
+                    </div>
+                </div>
+            </article>
+        </div>
+    </main>
+
+    <footer class="no-print">
+        <p>SmartPark · Smart Parking Management System</p>
+        <p>Phase 6: Billing and Pricing Summary</p>
+    </footer>
+</body>
+</html>

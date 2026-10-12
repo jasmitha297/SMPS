@@ -13,9 +13,13 @@
             <a href="{{ url_for('dashboard') }}" class="active-nav">Dashboard</a>
             <a href="{{ url_for('parking_slots') }}">Parking Slots</a>
             <a href="{{ url_for('vehicles') }}">My Vehicles</a>
+            {% if current_active_session %}
+                <a href="{{ url_for('active_session_view') }}" class="nav-live-pill">Active Session ⏱️</a>
+            {% endif %}
             <a href="{{ url_for('history') }}">History</a>
             {% if is_admin %}
                 <a href="{{ url_for('admin_slots') }}">Admin Slots</a>
+                <a href="{{ url_for('admin_pricing') }}">Pricing</a>
             {% endif %}
             <a href="{{ url_for('logout') }}">Logout</a>
         </div>
@@ -27,19 +31,25 @@
                 <p class="eyebrow">SMART PARKING MANAGEMENT SYSTEM</p>
                 <h1>Welcome, <span class="gradient-text">{{ name }}</span>!</h1>
                 <p>
-                    Manage your vehicles, reserve parking slots in real time, and view your complete booking history seamlessly.
+                    Manage vehicles, reserve slots, track real-time parking sessions with accurate live timers, and review automated billing invoices.
                 </p>
 
                 <div class="hero-buttons">
-                    <a href="{{ url_for('parking_slots') }}" class="btn">
-                        Explore Parking Slots →
-                    </a>
+                    {% if current_active_session %}
+                        <a href="{{ url_for('active_session_view') }}" class="btn nav-live-pill">
+                            ⏱️ Open Live Active Session →
+                        </a>
+                    {% else %}
+                        <a href="{{ url_for('parking_slots') }}" class="btn">
+                            Explore Parking Slots →
+                        </a>
+                    {% endif %}
                     <a href="{{ url_for('vehicles') }}" class="btn btn-secondary">
                         Manage Vehicles
                     </a>
                     {% if is_admin %}
-                        <a href="{{ url_for('admin_slots') }}" class="btn btn-secondary">
-                            Admin Console
+                        <a href="{{ url_for('admin_pricing') }}" class="btn btn-secondary">
+                            Pricing Tariffs
                         </a>
                     {% endif %}
                 </div>
@@ -48,10 +58,18 @@
             <div class="hero-image">
                 <div class="image-label">
                     <strong>SmartPark Dashboard</strong>
-                    <p>Phase 1-4 Complete · Full Vehicle & Slot Reservation Flow</p>
+                    <p>Phases 1-6 Active · Real-Time Parking Sessions & Automated Billing</p>
                 </div>
             </div>
         </section>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category if category in ['success', 'error'] else 'success' }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
 
         <!-- Metric Summary Cards -->
         <section class="stats-grid">
@@ -66,20 +84,58 @@
                 <small class="card-caption"><a href="{{ url_for('vehicles') }}">Manage in Vehicles →</a></small>
             </div>
             <div class="card stat-card">
-                <p>Active Reservations</p>
-                <h2 class="stat-number {{ 'stat-green' if active_bookings|length > 0 else '' }}">
+                <p>Active Parking Sessions</p>
+                <h2 class="stat-number {{ 'stat-green' if active_sessions|length > 0 else '' }}">
+                    {{ active_sessions|length }}
+                </h2>
+                <small class="card-caption"><a href="{{ url_for('active_session_view') if active_sessions|length > 0 else url_for('history') }}">View Session →</a></small>
+            </div>
+            <div class="card stat-card">
+                <p>Advance Reservations</p>
+                <h2 class="stat-number">
                     {{ active_bookings|length }}
                 </h2>
                 <small class="card-caption"><a href="{{ url_for('history') }}">View in History →</a></small>
             </div>
         </section>
 
-        <!-- Live Active Reservations Banner (if any active) -->
+        <!-- Live Active Parking Session Banner (Task 5.4) -->
+        {% if active_sessions %}
+            {% set s = active_sessions[0] %}
+            <section class="card active-bookings-card" style="border: 1px solid rgba(63, 224, 160, 0.4); box-shadow: 0 10px 30px rgba(63, 224, 160, 0.1);">
+                <div class="active-card-header">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span class="pulse-indicator"></span>
+                        <h2>⏱️ Current Live Parking Session</h2>
+                    </div>
+                    <span class="status-pill status-active">● Active Now</span>
+                </div>
+                <div class="active-ticket" style="align-items: center;">
+                    <div class="active-ticket-slot">
+                        <span class="slot-label">SLOT</span>
+                        <span class="slot-val">{{ s.slot_number }}</span>
+                    </div>
+                    <div class="active-ticket-details">
+                        <p><strong>Session Ref:</strong> <span class="booking-ref-badge">{{ s.session_code }}</span></p>
+                        <p><strong>Vehicle:</strong> {{ s.vehicle_number }} ({{ s.vehicle_type or 'Car' }}{% if s.model %} - {{ s.model }}{% endif %})</p>
+                        <p><strong>Parked At:</strong> {{ s.entry_time|format_dt }}</p>
+                        <p><strong>Tariff Rate:</strong> ₹{{ "%.2f"|format(s.hourly_rate) }} / hr</p>
+                    </div>
+                    <div class="active-ticket-action" style="display: flex; flex-direction: column; gap: 10px;">
+                        <a href="{{ url_for('active_session_view') }}" class="btn btn-primary">
+                            ⏱️ View Live Timer & Check Out →
+                        </a>
+                    </div>
+                </div>
+            </section>
+        {% endif %}
+
+        <!-- Active Advance Reservations Banner (if any) -->
         {% if active_bookings %}
             <section class="card active-bookings-card">
                 <div class="active-card-header">
-                    <h2>🅿️ Your Current Active Reservations</h2>
-                    <span class="status-pill status-active">● Active Now</span>
+                    <h2>📅 Your Advance Reservations</h2>
+                    <span class="status-pill status-active">● Reserved</span>
                 </div>
                 <div class="active-bookings-grid">
                     {% for b in active_bookings %}
@@ -94,10 +150,15 @@
                                 <p><strong>Reserved From:</strong> {{ b.start_time|format_dt }}</p>
                                 <p><strong>Valid Until:</strong> {{ b.end_time|format_dt }}</p>
                             </div>
-                            <div class="active-ticket-action">
+                            <div class="active-ticket-action" style="display: flex; flex-direction: column; gap: 8px;">
+                                <form action="{{ url_for('start_session_from_booking', booking_id=b.id) }}" method="POST">
+                                    <button class="btn btn-success btn-sm" type="submit" style="width: 100%;">
+                                        🅿️ Check In to Park
+                                    </button>
+                                </form>
                                 <form action="{{ url_for('cancel_booking', booking_id=b.id) }}" method="POST"
-                                      onsubmit="return confirm('Cancel this reservation for slot {{ b.slot_number }}?')">
-                                    <button class="btn btn-danger btn-sm" type="submit">
+                                      onsubmit="return confirm('Cancel reservation for slot {{ b.slot_number }}?')">
+                                    <button class="btn btn-danger btn-sm" type="submit" style="width: 100%;">
                                         Cancel Reservation
                                     </button>
                                 </form>
@@ -113,30 +174,38 @@
             <article class="card">
                 <div class="card-icon">🅿️</div>
                 <h2>Parking Slots</h2>
-                <p>View real-time availability, select a free slot, and confirm reservations with your vehicles.</p>
+                <p>View real-time slot availability, park immediately with live timing, or reserve in advance.</p>
                 <a href="{{ url_for('parking_slots') }}">View parking slots →</a>
             </article>
 
             <article class="card">
                 <div class="card-icon">🚗</div>
                 <h2>Vehicle Management</h2>
-                <p>Register your cars, bikes, and other vehicles to enable fast, single-click slot reservations.</p>
+                <p>Register cars, bikes, SUVs, and EVs to associate vehicles directly with parking sessions.</p>
                 <a href="{{ url_for('vehicles') }}">Manage vehicles →</a>
             </article>
 
             <article class="card">
+                <div class="card-icon">⏱️</div>
+                <h2>Live Parking Session</h2>
+                <p>Monitor your active parking session with seconds-level timer accuracy and live billing updates.</p>
+                <a href="{{ url_for('active_session_view') }}">Open live session →</a>
+            </article>
+
+            <article class="card">
                 <div class="card-icon">📜</div>
-                <h2>Booking History</h2>
-                <p>Track all previous slot bookings, active parking sessions, and cancel reservations anytime.</p>
+                <h2>History & Invoices</h2>
+                <p>Complete historical log of parking sessions, duration timestamps, and billing receipts.</p>
                 <a href="{{ url_for('history') }}">View history →</a>
             </article>
 
             {% if is_admin %}
                 <article class="card">
                     <div class="card-icon">⚙️</div>
-                    <h2>Slot Administration</h2>
-                    <p>Add new slots, rename, release occupied spaces, or delete existing parking slots.</p>
-                    <a href="{{ url_for('admin_slots') }}">Manage slots →</a>
+                    <h2>Admin Console</h2>
+                    <p>Manage slot inventory, edit slot IDs, and configure dynamic hourly tariff pricing rules.</p>
+                    <a href="{{ url_for('admin_slots') }}">Slot Admin →</a> &nbsp;|&nbsp;
+                    <a href="{{ url_for('admin_pricing') }}">Pricing Admin →</a>
                 </article>
             {% endif %}
         </section>
@@ -144,7 +213,7 @@
 
     <footer>
         <p>SmartPark · Smart Parking Management System</p>
-        <p>Phases 1 to 4: Authentication • Slot Management • Booking & Reservation • Vehicle Management</p>
+        <p>Phases 1 to 6: Authentication • Slots • Reservations • Vehicles • Sessions • Billing</p>
     </footer>
 </body>
 </html>

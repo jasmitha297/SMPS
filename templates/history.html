@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Booking History | SmartPark</title>
+    <title>Parking & Reservation History | SmartPark</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -13,9 +13,13 @@
             <a href="{{ url_for('dashboard') }}">Dashboard</a>
             <a href="{{ url_for('parking_slots') }}">Parking Slots</a>
             <a href="{{ url_for('vehicles') }}">My Vehicles</a>
+            {% if current_active_session %}
+                <a href="{{ url_for('active_session_view') }}" class="nav-live-pill">Active Session ⏱️</a>
+            {% endif %}
             <a href="{{ url_for('history') }}" class="active-nav">History</a>
             {% if is_admin %}
                 <a href="{{ url_for('admin_slots') }}">Admin Slots</a>
+                <a href="{{ url_for('admin_pricing') }}">Pricing</a>
             {% endif %}
             <a href="{{ url_for('logout') }}">Logout</a>
         </div>
@@ -24,13 +28,13 @@
     <main class="container">
         <section class="dashboard-heading">
             <div>
-                <p class="eyebrow">PHASE 3 · BOOKING & RESERVATION</p>
-                <h1>Reservation <span class="gradient-text">History</span></h1>
-                <p>Track all previous slot bookings, active parking sessions, and cancel reservations.</p>
+                <p class="eyebrow">PHASE 5 & PHASE 6 · PARKING AUDIT & BILLING HISTORY</p>
+                <h1>Parking & Reservation <span class="gradient-text">History</span></h1>
+                <p>Track all completed parking sessions, active live timers, advance reservations, and invoices.</p>
             </div>
             <div class="heading-actions">
                 <a href="{{ url_for('parking_slots') }}" class="btn">
-                    Book New Slot →
+                    Park / Book Slot →
                 </a>
             </div>
         </section>
@@ -43,112 +47,210 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Reservation Statistics Cards -->
+        <!-- Metric Summary Cards -->
         <section class="stats-grid">
             <div class="card stat-card">
-                <p>Total Reservations</p>
+                <p>Total Records</p>
                 <h2 class="stat-number">{{ stats.total }}</h2>
+                <small class="card-caption">sessions & reservations</small>
             </div>
             <div class="card stat-card stat-card-active">
-                <p>Active Reservations</p>
-                <h2 class="stat-number stat-green">{{ stats.active }}</h2>
+                <p>Active Right Now</p>
+                <h2 class="stat-number stat-green">{{ stats.active_sessions + stats.active_reservations }}</h2>
+                <small class="card-caption">{{ stats.active_sessions }} session(s) · {{ stats.active_reservations }} booking(s)</small>
             </div>
-            <div class="card stat-card stat-card-cancelled">
-                <p>Cancelled Bookings</p>
-                <h2 class="stat-number stat-red">{{ stats.cancelled }}</h2>
+            <div class="card stat-card">
+                <p>Completed Sessions</p>
+                <h2 class="stat-number stat-blue">{{ stats.completed_sessions }}</h2>
+                <small class="card-caption">checked out & released</small>
+            </div>
+            <div class="card stat-card">
+                <p>Total Parking Fees</p>
+                <h2 class="stat-number stat-green">₹{{ "%.2f"|format(stats.total_revenue) }}</h2>
+                <small class="card-caption">billed across completed sessions</small>
             </div>
         </section>
 
         {% if is_admin %}
             <div class="admin-view-toggle">
-                <span>View Mode:</span>
-                <a href="{{ url_for('history') }}" class="btn btn-sm {{ 'btn-secondary' if is_admin_view else '' }}">
-                    My Reservations
+                <span>View Scope:</span>
+                <a href="{{ url_for('history', tab=active_tab, status=selected_status, q=search_query) }}" class="btn btn-sm {{ '' if not is_admin_view else 'btn-secondary' }}">
+                    My Records
                 </a>
-                <a href="{{ url_for('history', view='all') }}" class="btn btn-sm {{ '' if is_admin_view else 'btn-secondary' }}">
-                    All System Reservations
+                <a href="{{ url_for('history', view='all', tab=active_tab, status=selected_status, q=search_query) }}" class="btn btn-sm {{ 'btn-secondary' if not is_admin_view else '' }}">
+                    All System Records (Admin)
                 </a>
             </div>
         {% endif %}
 
-        <!-- Bookings History Table -->
+        <!-- Filter Bar and Tabs -->
+        <div class="history-controls card">
+            <div class="history-tabs">
+                <a href="{{ url_for('history', tab='all', view='all' if is_admin_view else None, status=selected_status, q=search_query) }}"
+                   class="tab-btn {{ 'active-tab' if active_tab == 'all' else '' }}">
+                    All Records ({{ total_filtered_count }})
+                </a>
+                <a href="{{ url_for('history', tab='sessions', view='all' if is_admin_view else None, status=selected_status, q=search_query) }}"
+                   class="tab-btn {{ 'active-tab' if active_tab == 'sessions' else '' }}">
+                    🅿️ Parking Sessions ({{ sessions_count }})
+                </a>
+                <a href="{{ url_for('history', tab='reservations', view='all' if is_admin_view else None, status=selected_status, q=search_query) }}"
+                   class="tab-btn {{ 'active-tab' if active_tab == 'reservations' else '' }}">
+                    📅 Advance Reservations ({{ reservations_count }})
+                </a>
+            </div>
+
+            <!-- Search and Status Filter Form -->
+            <form method="GET" action="{{ url_for('history') }}" class="history-filter-form">
+                {% if is_admin_view %}
+                    <input type="hidden" name="view" value="all">
+                {% endif %}
+                <input type="hidden" name="tab" value="{{ active_tab }}">
+
+                <div class="filter-inputs">
+                    <input type="text" name="q" value="{{ search_query }}" placeholder="Search plate number or reference..." class="search-input">
+                    <select name="status" onchange="this.form.submit()" class="filter-select">
+                        <option value="all" {{ 'selected' if selected_status == 'all' else '' }}>All Statuses</option>
+                        <option value="active" {{ 'selected' if selected_status == 'active' else '' }}>Active Only</option>
+                        <option value="completed" {{ 'selected' if selected_status == 'completed' else '' }}>Completed Only</option>
+                        <option value="cancelled" {{ 'selected' if selected_status == 'cancelled' else '' }}>Cancelled Only</option>
+                    </select>
+                    <button type="submit" class="btn btn-sm">Filter</button>
+                    {% if search_query or selected_status != 'all' %}
+                        <a href="{{ url_for('history', tab=active_tab, view='all' if is_admin_view else None) }}" class="btn btn-sm btn-secondary">Reset</a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+
+        <!-- History Records Table Card -->
         <section class="card history-table-card">
             <div class="history-table-header">
                 <h2>
                     {% if is_admin_view %}
-                        All System Reservations ({{ bookings|length }})
+                        All System Reservations ({{ records|length }})
                     {% else %}
-                        Your Booking Records ({{ bookings|length }})
+                        Your Booking Records ({{ records|length }})
                     {% endif %}
                 </h2>
-                <p>Full audit trail of parking slot reservations and cancellations.</p>
+                <p>Complete historical log sorted chronologically with newest records first.</p>
             </div>
 
-            {% if bookings %}
+            {% if records %}
                 <div class="admin-table-wrap">
                     <table>
                         <thead>
                             <tr>
-                                <th>Booking Ref</th>
+                                <th>Reference</th>
+                                <th>Type</th>
                                 <th>Slot</th>
-                                <th>Vehicle Details</th>
+                                <th>Vehicle Plate & Type</th>
                                 {% if is_admin_view %}
-                                    <th>Booked By</th>
+                                    <th>User</th>
                                 {% endif %}
-                                <th>Start Time</th>
+                                <th>Entry / Start</th>
+                                <th>Exit / End</th>
                                 <th>Duration</th>
-                                <th>End Time</th>
+                                <th>Fee</th>
                                 <th>Status</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for b in bookings %}
-                                <tr class="history-row-{{ b.status|lower }}">
+                            {% for r in records %}
+                                <tr class="history-row-{{ r.status|lower }}">
                                     <td>
-                                        <span class="booking-ref-badge">{{ b.booking_code }}</span>
+                                        <span class="booking-ref-badge">{{ r.code }}</span>
                                     </td>
                                     <td>
-                                        <strong class="slot-badge-text">{{ b.slot_number or "—" }}</strong>
+                                        {% if r.type == 'session' %}
+                                            <span class="type-pill session-type-pill">Live Session</span>
+                                        {% else %}
+                                            <span class="type-pill booking-type-pill">Reservation</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <strong class="slot-badge-text">{{ r.slot_number or "—" }}</strong>
                                     </td>
                                     <td>
                                         <div class="vehicle-mini">
-                                            <span class="plate-mini">{{ b.vehicle_number }}</span>
-                                            {% if b.model or b.vehicle_type %}
-                                                <small class="vehicle-sub">{{ b.model or '' }} ({{ b.vehicle_type or 'Car' }})</small>
+                                            <span class="plate-mini">{{ r.vehicle_number }}</span>
+                                            {% if r.model or r.vehicle_type %}
+                                                <small class="vehicle-sub">{{ r.model or '' }} ({{ r.vehicle_type or 'Car' }})</small>
                                             {% endif %}
                                         </div>
                                     </td>
                                     {% if is_admin_view %}
                                         <td>
                                             <div class="user-mini">
-                                                <strong>{{ b.user_name }}</strong>
-                                                <small>{{ b.user_email }}</small>
+                                                <strong>{{ r.user_name }}</strong>
+                                                <small>{{ r.user_email }}</small>
                                             </div>
                                         </td>
                                     {% endif %}
-                                    <td>{{ b.start_time|format_dt }}</td>
-                                    <td>{{ b.duration_hours }} hr{{ 's' if b.duration_hours > 1 else '' }}</td>
-                                    <td>{{ b.end_time|format_dt }}</td>
+                                    <td>{{ r.start_time|format_dt }}</td>
                                     <td>
-                                        {% if b.status == 'Active' %}
+                                        {% if r.end_time %}
+                                            {{ r.end_time|format_dt }}
+                                        {% else %}
+                                            <span class="live-active-tag">● In Progress</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if r.duration_text %}
+                                            {{ r.duration_text }}
+                                        {% else %}
+                                            —
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if r.fee is not none and r.fee > 0 %}
+                                            <strong class="fee-text">₹{{ "%.2f"|format(r.fee) }}</strong>
+                                        {% elif r.type == 'session' and r.status == 'Active' %}
+                                            <small class="muted-text">Ticking...</small>
+                                        {% else %}
+                                            <span class="muted-text">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if r.status == 'Active' %}
                                             <span class="status-pill status-active">● Active</span>
-                                        {% elif b.status == 'Cancelled' %}
+                                        {% elif r.status == 'Cancelled' %}
                                             <span class="status-pill status-cancelled">✕ Cancelled</span>
                                         {% else %}
                                             <span class="status-pill status-completed">✓ Completed</span>
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if b.status == 'Active' %}
-                                            <form action="{{ url_for('cancel_booking', booking_id=b.id) }}" method="POST"
-                                                  onsubmit="return confirm('Are you sure you want to cancel reservation {{ b.booking_code }} for slot {{ b.slot_number }}? The slot will be freed immediately.')">
-                                                <button type="submit" class="btn btn-danger btn-sm">
-                                                    Cancel Reservation
-                                                </button>
-                                            </form>
+                                        {% if r.type == 'session' %}
+                                            {% if r.status == 'Active' %}
+                                                <a href="{{ url_for('active_session_view') }}" class="btn btn-sm btn-primary">
+                                                    ⏱️ Live Timer
+                                                </a>
+                                            {% else %}
+                                                <a href="{{ url_for('bill_summary', session_id=r.id) }}" class="btn btn-sm btn-secondary">
+                                                    📄 View Bill
+                                                </a>
+                                            {% endif %}
                                         {% else %}
-                                            <span class="muted-action">—</span>
+                                            {# Reservation Actions #}
+                                            {% if r.status == 'Active' %}
+                                                <div class="action-btn-group">
+                                                    <form action="{{ url_for('start_session_from_booking', booking_id=r.id) }}" method="POST" style="display:inline;">
+                                                        <button type="submit" class="btn btn-sm btn-success" title="Begin actual parking session and start timer">
+                                                            🅿️ Check In
+                                                        </button>
+                                                    </form>
+                                                    <form action="{{ url_for('cancel_booking', booking_id=r.id) }}" method="POST" style="display:inline;"
+                                                          onsubmit="return confirm('Cancel reservation {{ r.code }} for slot {{ r.slot_number }}?')">
+                                                        <button type="submit" class="btn btn-sm btn-danger">
+                                                            Cancel Reservation
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            {% else %}
+                                                <span class="muted-action">—</span>
+                                            {% endif %}
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -159,8 +261,14 @@
             {% else %}
                 <div class="empty-state">
                     <div class="empty-icon">📜</div>
-                    <h3>No Reservations Found</h3>
-                    <p>You haven't made any parking reservations yet. Check available parking slots to book your first space.</p>
+                    <h3>No Parking Records Found</h3>
+                    <p>
+                        {% if search_query or selected_status != 'all' %}
+                            No records match your active search filter. Try clearing the filter.
+                        {% else %}
+                            You have no parking sessions or reservations yet. Select an available space to start parking.
+                        {% endif %}
+                    </p>
                     <a href="{{ url_for('parking_slots') }}" class="btn" style="margin-top: 15px;">
                         Explore Parking Slots →
                     </a>
@@ -171,7 +279,7 @@
 
     <footer>
         <p>SmartPark · Smart Parking Management System</p>
-        <p>Phase 3: Booking & Reservation History with Real-Time Cancellation</p>
+        <p>Phase 5: Session Lifecycle & Phase 6: Pricing and Billing Integration</p>
     </footer>
 </body>
 </html>

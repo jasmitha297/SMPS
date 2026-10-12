@@ -13,9 +13,13 @@
             <a href="{{ url_for('dashboard') }}">Dashboard</a>
             <a href="{{ url_for('parking_slots') }}" class="active-nav">Parking Slots</a>
             <a href="{{ url_for('vehicles') }}">My Vehicles</a>
+            {% if current_active_session %}
+                <a href="{{ url_for('active_session_view') }}" class="nav-live-pill">Active Session ⏱️</a>
+            {% endif %}
             <a href="{{ url_for('history') }}">History</a>
             {% if is_admin %}
                 <a href="{{ url_for('admin_slots') }}">Admin Slots</a>
+                <a href="{{ url_for('admin_pricing') }}">Pricing</a>
             {% endif %}
             <a href="{{ url_for('logout') }}">Logout</a>
         </div>
@@ -23,11 +27,21 @@
 
     <main class="container parking-page">
         <section class="parking-heading">
-            <p class="eyebrow">PHASE 2 & 3 · SLOT BOOKING & RESERVATION</p>
-            <h1>Find Your <span class="gradient-text">Parking Slot</span></h1>
-            <p>Select your registered vehicle, choose a duration, and reserve your parking slot in real time.</p>
+            <div>
+                <p class="eyebrow">PHASE 2, 3, 5 · SLOTS & LIVE PARKING SESSIONS</p>
+                <h1>Find Your <span class="gradient-text">Parking Slot</span></h1>
+                <p>Select your registered vehicle, start an immediate parking session, or reserve ahead of time.</p>
+            </div>
+            {% if current_active_session %}
+                <div class="heading-actions">
+                    <a href="{{ url_for('active_session_view') }}" class="btn btn-primary nav-live-pill">
+                        ⏱️ Open Live Timer (Slot {{ current_active_session.slot_number }}) →
+                    </a>
+                </div>
+            {% endif %}
         </section>
 
+        <!-- Slot Availability Metric Cards -->
         <section class="stats-grid">
             <div class="card stat-card">
                 <p>Total Slots</p>
@@ -51,14 +65,30 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Phase 4 Pre-requisite Notice: Vehicle Registration Required -->
+        <!-- Active Session Alert Banner (if user currently has a running session) -->
+        {% if current_active_session %}
+            <div class="alert-banner alert-info" style="border-left: 4px solid var(--green);">
+                <div class="alert-content">
+                    <span class="alert-icon">⏱️</span>
+                    <div>
+                        <strong>You have an active parking session!</strong>
+                        <p>Slot <strong>{{ current_active_session.slot_number }}</strong> is occupied by <strong>{{ current_active_session.vehicle_number }}</strong>. The live timer is ticking.</p>
+                    </div>
+                </div>
+                <a href="{{ url_for('active_session_view') }}" class="btn">
+                    View Live Session & Timer →
+                </a>
+            </div>
+        {% endif %}
+
+        <!-- Pre-requisite Notice: Vehicle Registration Required -->
         {% if user_vehicles|length == 0 %}
             <div class="alert-banner alert-warning">
                 <div class="alert-content">
                     <span class="alert-icon">⚠️</span>
                     <div>
                         <strong>Vehicle Registration Required First</strong>
-                        <p>To reserve a parking slot, you must have at least one vehicle registered in your account.</p>
+                        <p>To park or reserve a slot, you must have at least one registered vehicle in your account.</p>
                     </div>
                 </div>
                 <a href="{{ url_for('vehicles', next='parking_slots') }}" class="btn">
@@ -70,12 +100,12 @@
                 <div class="alert-content">
                     <span class="alert-icon">🚗</span>
                     <div>
-                        <strong>Ready to Book</strong>
-                        <p>You have {{ user_vehicles|length }} registered vehicle(s) ready for slot reservation.</p>
+                        <strong>Ready to Park</strong>
+                        <p>You have {{ user_vehicles|length }} registered vehicle(s). Standard pricing is <strong>₹30.00/hr</strong> (see vehicle pricing for specific tariffs).</p>
                     </div>
                 </div>
                 <a href="{{ url_for('vehicles') }}" class="btn btn-secondary btn-sm">
-                    + Register Another Vehicle
+                    + Manage Vehicles
                 </a>
             </div>
         {% endif %}
@@ -83,23 +113,33 @@
         <div class="parking-legend">
             <span><i class="legend-dot available-dot"></i> Available</span>
             <span><i class="legend-dot occupied-dot"></i> Occupied</span>
-            <span><i class="legend-dot my-booking-dot"></i> Reserved by You</span>
+            <span><i class="legend-dot my-booking-dot"></i> Your Active Session / Reservation</span>
         </div>
 
+        <!-- Parking Slots Grid -->
         <section class="slot-grid">
             {% for slot in slots %}
-                {% set is_my_booking = (slot['id'] in user_active_slots) or (slot['booked_by'] == session['user_id'] and slot['status'] == 'Occupied') %}
-                <article class="slot-card {{ 'my-reserved' if is_my_booking else ('available' if slot['status'] == 'Available' else 'occupied') }}">
+                {% set is_my_session = user_active_sessions.get(slot['id']) %}
+                {% set is_my_booking = user_active_slots.get(slot['id']) %}
+                {% set is_mine = is_my_session or is_my_booking %}
+
+                <article class="slot-card {{ 'my-reserved' if is_mine else ('available' if slot['status'] == 'Available' else 'occupied') }}">
                     <div class="slot-card-header">
                         <div class="slot-icon">🅿️</div>
-                        {% if is_my_booking %}
-                            <span class="my-booking-badge">Your Reservation</span>
+                        {% if is_my_session %}
+                            <span class="my-booking-badge" style="background: rgba(63, 224, 160, 0.2); color: var(--green); border-color: rgba(63, 224, 160, 0.4);">
+                                ● Active Session
+                            </span>
+                        {% elif is_my_booking %}
+                            <span class="my-booking-badge">Reserved by You</span>
                         {% endif %}
                     </div>
 
                     <h3>{{ slot["slot_number"] }}</h3>
                     <p class="status">
-                        {% if is_my_booking %}
+                        {% if is_my_session %}
+                            Parked Now (Active Timer)
+                        {% elif is_my_booking %}
                             Reserved by You
                         {% else %}
                             {{ slot["status"] }}
@@ -109,7 +149,7 @@
                     {% if slot["status"] == "Available" %}
                         {% if user_vehicles|length > 0 %}
                             <form action="{{ url_for('select_slot', slot_id=slot['id']) }}" method="POST" class="slot-booking-form">
-                                <label for="vehicle-{{ slot['id'] }}">Select Your Vehicle *</label>
+                                <label for="vehicle-{{ slot['id'] }}">Select Registered Vehicle *</label>
                                 <select id="vehicle-{{ slot['id'] }}" name="vehicle_id" required>
                                     {% for v in user_vehicles %}
                                         <option value="{{ v.id }}" {{ 'disabled' if v.has_active_booking else '' }}>
@@ -119,22 +159,21 @@
                                     {% endfor %}
                                 </select>
 
-                                <label for="duration-{{ slot['id'] }}">Duration</label>
-                                <select id="duration-{{ slot['id'] }}" name="duration">
-                                    <option value="1">1 Hour</option>
-                                    <option value="2" selected>2 Hours</option>
-                                    <option value="4">4 Hours</option>
-                                    <option value="8">8 Hours</option>
-                                    <option value="24">Full Day (24 hrs)</option>
+                                <label for="action-type-{{ slot['id'] }}">Action Mode</label>
+                                <select id="action-type-{{ slot['id'] }}" name="action_type">
+                                    <option value="park_now" selected>⚡ Park Now (Immediate Session & Timer)</option>
+                                    <option value="reserve">📅 Advance Reservation (2 hrs)</option>
                                 </select>
 
-                                <button class="btn" type="submit">
-                                    Confirm Reservation →
-                                </button>
+                                <div class="slot-button-row">
+                                    <button class="btn" type="submit" style="width: 100%;">
+                                        Confirm & Park / Reserve →
+                                    </button>
+                                </div>
                             </form>
                         {% else %}
                             <div class="slot-action-prompt">
-                                <p class="prompt-text">Register a vehicle first to reserve this slot.</p>
+                                <p class="prompt-text">Register a vehicle first to reserve or park in this space.</p>
                                 <a href="{{ url_for('vehicles', next='parking_slots') }}" class="btn btn-secondary">
                                     Register Vehicle
                                 </a>
@@ -148,13 +187,24 @@
                             </span>
                         </div>
 
-                        {% if is_my_booking and slot['id'] in user_active_slots %}
-                            <form action="{{ url_for('cancel_booking', booking_id=user_active_slots[slot['id']]['booking_id']) }}" method="POST"
-                                  onsubmit="return confirm('Are you sure you want to cancel this reservation for slot {{ slot.slot_number }}?')">
-                                <button class="btn btn-danger" type="submit" style="width: 100%;">
-                                    Cancel Reservation
-                                </button>
-                            </form>
+                        {% if is_my_session %}
+                            <a href="{{ url_for('active_session_view') }}" class="btn btn-primary" style="width: 100%; text-align: center;">
+                                ⏱️ Open Timer & Check Out
+                            </a>
+                        {% elif is_my_booking %}
+                            <div class="slot-reservation-actions">
+                                <form action="{{ url_for('start_session_from_booking', booking_id=user_active_slots[slot['id']]['booking_id']) }}" method="POST">
+                                    <button class="btn btn-success" type="submit" style="width: 100%; margin-bottom: 8px;">
+                                        🅿️ Check In to Park Now
+                                    </button>
+                                </form>
+                                <form action="{{ url_for('cancel_booking', booking_id=user_active_slots[slot['id']]['booking_id']) }}" method="POST"
+                                      onsubmit="return confirm('Cancel reservation for slot {{ slot.slot_number }}?')">
+                                    <button class="btn btn-danger btn-sm" type="submit" style="width: 100%;">
+                                        Cancel Reservation
+                                    </button>
+                                </form>
+                            </div>
                         {% else %}
                             <button class="btn" disabled>Slot Occupied</button>
                         {% endif %}
@@ -168,7 +218,7 @@
 
     <footer>
         <p>SmartPark · Smart Parking Management System</p>
-        <p>Phase 3: Booking & Reservation System with Phase 4 Vehicle Management</p>
+        <p>Phase 5: Real-Time Parking Session Association & Slot Management</p>
     </footer>
 </body>
 </html>

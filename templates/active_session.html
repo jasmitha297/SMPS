@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Active Parking Session | SmartPark</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <a class="logo" href="{{ url_for('dashboard') }}">Smart<span>Park</span></a>
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('parking_slots') }}">Parking Slots</a>
+            <a href="{{ url_for('vehicles') }}">My Vehicles</a>
+            <a href="{{ url_for('active_session_view') }}" class="active-nav nav-live-pill">Active Session ⏱️</a>
+            <a href="{{ url_for('history') }}">History</a>
+            {% if is_admin %}
+                <a href="{{ url_for('admin_slots') }}">Admin Slots</a>
+                <a href="{{ url_for('admin_pricing') }}">Pricing</a>
+            {% endif %}
+            <a href="{{ url_for('logout') }}">Logout</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <section class="dashboard-heading">
+            <div>
+                <p class="eyebrow">PHASE 5 · PARKING SESSION MANAGEMENT</p>
+                <h1>Active Parking <span class="gradient-text">Session</span></h1>
+                <p>Live session monitoring with accurate server-synced elapsed timer and estimated billing.</p>
+            </div>
+            <div class="heading-actions">
+                <a href="{{ url_for('history') }}" class="btn btn-secondary">
+                    View History →
+                </a>
+            </div>
+        </section>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category if category in ['success', 'error'] else 'success' }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% if session_data %}
+            <div class="session-active-container">
+                <!-- Main Active Session Card -->
+                <div class="card session-main-card">
+                    <div class="session-header-bar">
+                        <div class="session-badge-wrap">
+                            <span class="pulse-indicator"></span>
+                            <span class="status-pill status-active">● Active Parking Session</span>
+                        </div>
+                        <span class="booking-ref-badge">Session Ref: {{ session_data.session_code }}</span>
+                    </div>
+
+                    <!-- Slot and Vehicle Highlight -->
+                    <div class="session-details-grid">
+                        <div class="session-slot-box">
+                            <span class="slot-box-label">PARKING SLOT</span>
+                            <span class="slot-box-number">{{ session_data.slot_number }}</span>
+                            <span class="slot-box-status">Occupied by You</span>
+                        </div>
+
+                        <div class="session-vehicle-box">
+                            <div class="vehicle-plate-large">{{ session_data.vehicle_number }}</div>
+                            <p class="vehicle-meta-large">
+                                {{ session_data.vehicle_type or 'Vehicle' }}
+                                {% if session_data.model %} · {{ session_data.model }}{% endif %}
+                                {% if session_data.color %} ({{ session_data.color }}){% endif %}
+                            </p>
+                            <div class="session-meta-row">
+                                <span class="meta-item">
+                                    <strong>Entry Time:</strong> {{ session_data.entry_time|format_dt }}
+                                </span>
+                                <span class="meta-item">
+                                    <strong>Pricing Rule:</strong> {{ session_data.pricing_rule_name or 'Standard Rate' }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live Parking Timer Display (Task 5.4) -->
+                    <div class="live-timer-widget">
+                        <span class="timer-title">ELAPSED PARKING DURATION</span>
+                        <div id="live-timer" class="timer-clock" data-entry="{{ entry_iso }}">
+                            00:00:00
+                        </div>
+                        <div class="timer-caption">
+                            <span>⏱️ Continuous server-timestamp synchronized live counter</span>
+                            <span id="elapsed-readable" class="elapsed-human-text">Calculating...</span>
+                        </div>
+                    </div>
+
+                    <!-- Live Pricing & Billing Estimation (Task 6.1 & 6.4) -->
+                    <div class="live-billing-preview">
+                        <div class="billing-preview-item">
+                            <span class="preview-label">Applied Hourly Rate</span>
+                            <span class="preview-value">₹<span id="hourly-rate-val">{{ "%.2f"|format(session_data.hourly_rate) }}</span> / hr</span>
+                        </div>
+                        <div class="billing-preview-item">
+                            <span class="preview-label">Current Billed Time</span>
+                            <span class="preview-value" id="live-billed-hours">{{ current_estimate.billed_hours }} hr{{ 's' if current_estimate.billed_hours > 1 else '' }}</span>
+                        </div>
+                        <div class="billing-preview-item highlight">
+                            <span class="preview-label">Estimated Current Bill</span>
+                            <span class="preview-value price-highlight" id="live-estimated-fee">₹{{ "%.2f"|format(current_estimate.final_amount) }}</span>
+                        </div>
+                    </div>
+
+                    <div class="policy-note">
+                        <small>💡 <strong>Billing Policy:</strong> Standard Hourly Rounding (Ceiling). Any started hour or fraction is billed as one complete hour. The final exact amount will be generated upon checkout.</small>
+                    </div>
+
+                    <!-- Task 5.5: End Parking Session / Check Out Action -->
+                    <div class="session-actions-bar">
+                        <form action="{{ url_for('end_session', session_id=session_data.id) }}" method="POST"
+                              onsubmit="return confirm('Confirm checkout for Slot {{ session_data.slot_number }} ({{ session_data.vehicle_number }})? This will end the timer, release the parking slot, and generate your final bill.')">
+                            <button type="submit" class="btn btn-danger btn-lg session-end-btn">
+                                ⏹️ End Parking Session & Check Out →
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Session Information Card -->
+                <aside class="card session-info-aside">
+                    <h3>Parking Session Guide</h3>
+                    <ul class="session-guide-list">
+                        <li>
+                            <strong>Persistent Timer</strong>
+                            <p>You can refresh or leave this page anytime. Your elapsed parking time is anchored to the server entry timestamp.</p>
+                        </li>
+                        <li>
+                            <strong>Automatic Release</strong>
+                            <p>Ending your parking session immediately releases Slot <strong>{{ session_data.slot_number }}</strong> for other drivers.</p>
+                        </li>
+                        <li>
+                            <strong>Itemized Billing</strong>
+                            <p>Checkout generates a persistent invoice breakdown with payment instructions for Phase 7.</p>
+                        </li>
+                    </ul>
+
+                    <div class="aside-footer-links">
+                        <a href="{{ url_for('parking_slots') }}" class="btn btn-secondary btn-sm" style="width: 100%;">
+                            View All Parking Slots
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        {% else %}
+            <!-- Empty state when no active session -->
+            <div class="card empty-state">
+                <div class="empty-icon">🅿️</div>
+                <h2>No Active Parking Session</h2>
+                <p>You currently do not have a vehicle parked in an active session. Choose an available slot or check in to an existing reservation to start parking.</p>
+                <div class="empty-actions" style="margin-top: 20px; display: flex; gap: 15px; justify-content: center;">
+                    <a href="{{ url_for('parking_slots') }}" class="btn">
+                        Find Parking Slot →
+                    </a>
+                    <a href="{{ url_for('history') }}" class="btn btn-secondary">
+                        View Reservations
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </main>
+
+    <footer>
+        <p>SmartPark · Smart Parking Management System</p>
+        <p>Phase 5: Parking Session Management & Phase 6: Billing & Pricing</p>
+    </footer>
+
+    {% if session_data %}
+    <script>
+        (function() {
+            const timerEl = document.getElementById("live-timer");
+            const readableEl = document.getElementById("elapsed-readable");
+            const rateEl = document.getElementById("hourly-rate-val");
+            const liveFeeEl = document.getElementById("live-estimated-fee");
+            const liveHoursEl = document.getElementById("live-billed-hours");
+
+            if (!timerEl) return;
+
+            const entryIso = timerEl.getAttribute("data-entry");
+            // Normalize ISO string across browsers
+            const entryTime = new Date(entryIso).getTime();
+
+            function updateTimer() {
+                const now = new Date().getTime();
+                let diffSec = Math.max(0, Math.floor((now - entryTime) / 1000));
+
+                const days = Math.floor(diffSec / 86400);
+                const hours = Math.floor((diffSec % 86400) / 3600);
+                const minutes = Math.floor((diffSec % 3600) / 60);
+                const seconds = diffSec % 60;
+
+                const pad = (n) => String(n).padStart(2, '0');
+
+                if (days > 0) {
+                    timerEl.textContent = `${days}d ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+                } else {
+                    timerEl.textContent = `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+                }
+
+                if (readableEl) {
+                    let parts = [];
+                    if (days > 0) parts.push(`${days} day${days > 1 ? 's' : ''}`);
+                    if (hours > 0) parts.push(`${hours} hr${hours > 1 ? 's' : ''}`);
+                    parts.push(`${minutes} min${minutes !== 1 ? 's' : ''}`);
+                    parts.push(`${seconds} sec${seconds !== 1 ? 's' : ''}`);
+                    readableEl.textContent = `Elapsed: ${parts.join(' ')}`;
+                }
+
+                // Dynamic live fee estimation
+                if (rateEl && liveFeeEl) {
+                    const hourlyRate = parseFloat(rateEl.textContent) || 30.0;
+                    // Ceiling hour billing policy: minimum 1 hour, then any started hour counts as full hour
+                    let billedHours = 1;
+                    if (diffSec > 0) {
+                        billedHours = Math.max(1, Math.ceil(diffSec / 3600));
+                    }
+                    const estAmount = (billedHours * hourlyRate).toFixed(2);
+                    liveFeeEl.textContent = `₹${estAmount}`;
+                    if (liveHoursEl) {
+                        liveHoursEl.textContent = `${billedHours} hr${billedHours > 1 ? 's' : ''}`;
+                    }
+                }
+            }
+
+            updateTimer();
+            setInterval(updateTimer, 1000);
+        })();
+    </script>
+    {% endif %}
+</body>
+</html>
