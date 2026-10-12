@@ -1684,12 +1684,18 @@ def delete_slot(slot_id):
 # ADMIN PRICING CONFIGURATION (Phase 6)
 # ----------------------------------------------------
 
+@app.route("/pricing")
 @app.route("/admin/pricing", methods=["GET", "POST"])
-@admin_required
+@login_required
 def admin_pricing():
     """Task 6.2 & 6.5: View and configure pricing rules."""
     conn = get_db()
     if request.method == "POST":
+        if not session.get("is_admin"):
+            flash("Admin privileges required to modify pricing tariffs.", "error")
+            conn.close()
+            return redirect(url_for("admin_pricing"))
+
         rule_name = request.form.get("rule_name", "").strip()
         vehicle_type = request.form.get("vehicle_type", "All").strip()
         hourly_rate = request.form.get("hourly_rate", "30.0")

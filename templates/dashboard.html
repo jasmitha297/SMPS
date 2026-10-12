@@ -13,13 +13,11 @@
             <a href="{{ url_for('dashboard') }}" class="active-nav">Dashboard</a>
             <a href="{{ url_for('parking_slots') }}">Parking Slots</a>
             <a href="{{ url_for('vehicles') }}">My Vehicles</a>
-            {% if current_active_session %}
-                <a href="{{ url_for('active_session_view') }}" class="nav-live-pill">Active Session ⏱️</a>
-            {% endif %}
-            <a href="{{ url_for('history') }}">History</a>
+            <a href="{{ url_for('active_session_view') }}" class="{{ 'nav-live-pill' if current_active_session else '' }}">Active Session ⏱️</a>
+            <a href="{{ url_for('history') }}">History & Bills</a>
+            <a href="{{ url_for('admin_pricing') }}">Pricing Tariffs</a>
             {% if is_admin %}
                 <a href="{{ url_for('admin_slots') }}">Admin Slots</a>
-                <a href="{{ url_for('admin_pricing') }}">Pricing</a>
             {% endif %}
             <a href="{{ url_for('logout') }}">Logout</a>
         </div>
@@ -35,23 +33,18 @@
                 </p>
 
                 <div class="hero-buttons">
-                    {% if current_active_session %}
-                        <a href="{{ url_for('active_session_view') }}" class="btn nav-live-pill">
-                            ⏱️ Open Live Active Session →
-                        </a>
-                    {% else %}
-                        <a href="{{ url_for('parking_slots') }}" class="btn">
-                            Explore Parking Slots →
-                        </a>
-                    {% endif %}
-                    <a href="{{ url_for('vehicles') }}" class="btn btn-secondary">
-                        Manage Vehicles
+                    <a href="{{ url_for('parking_slots') }}" class="btn">
+                        🅿️ Park a Vehicle →
                     </a>
-                    {% if is_admin %}
-                        <a href="{{ url_for('admin_pricing') }}" class="btn btn-secondary">
-                            Pricing Tariffs
-                        </a>
-                    {% endif %}
+                    <a href="{{ url_for('active_session_view') }}" class="btn btn-secondary {{ 'nav-live-pill' if current_active_session else '' }}">
+                        ⏱️ Live Session Timer
+                    </a>
+                    <a href="{{ url_for('admin_pricing') }}" class="btn btn-secondary">
+                        💰 Pricing Tariffs
+                    </a>
+                    <a href="{{ url_for('history') }}" class="btn btn-secondary">
+                        📜 History & Bills
+                    </a>
                 </div>
             </div>
 

@@ -13,12 +13,12 @@
             <a href="{{ url_for('dashboard') }}">Dashboard</a>
             <a href="{{ url_for('parking_slots') }}">Parking Slots</a>
             <a href="{{ url_for('vehicles') }}">My Vehicles</a>
-            {% if current_active_session %}
-                <a href="{{ url_for('active_session_view') }}" class="nav-live-pill">Active Session ⏱️</a>
+            <a href="{{ url_for('active_session_view') }}" class="{{ 'nav-live-pill' if current_active_session else '' }}">Active Session ⏱️</a>
+            <a href="{{ url_for('history') }}">History & Bills</a>
+            <a href="{{ url_for('admin_pricing') }}" class="active-nav">Pricing Tariffs</a>
+            {% if is_admin %}
+                <a href="{{ url_for('admin_slots') }}">Admin Slots</a>
             {% endif %}
-            <a href="{{ url_for('history') }}">History</a>
-            <a href="{{ url_for('admin_slots') }}">Admin Slots</a>
-            <a href="{{ url_for('admin_pricing') }}" class="active-nav">Pricing</a>
             <a href="{{ url_for('logout') }}">Logout</a>
         </div>
     </nav>
