@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Users | SmartPark Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <a class="logo" href="{{ url_for('dashboard') }}">Smart<span>Park</span></a>
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('parking_slots') }}">Parking Slots</a>
+            <a href="{{ url_for('vehicles') }}">My Vehicles</a>
+            <a href="{{ url_for('active_session_view') }}" class="{{ 'nav-live-pill' if current_active_session else '' }}">Active Session ⏱️</a>
+            <a href="{{ url_for('history') }}">History & Bills</a>
+            <a href="{{ url_for('admin_pricing') }}">Pricing Tariffs</a>
+            <a href="{{ url_for('admin_dashboard') }}">Admin Dashboard</a>
+            <a href="{{ url_for('admin_slots') }}">Admin Slots</a>
+            <a href="{{ url_for('admin_users') }}" class="active-nav">Manage Users</a>
+            <a href="{{ url_for('admin_reports') }}">Reports</a>
+            <a href="{{ url_for('logout') }}">Logout</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <section class="dashboard-heading">
+            <div>
+                <p class="eyebrow">PHASE 8 · USER ACCOUNT MANAGEMENT (TASK 8.6)</p>
+                <h1>System <span class="gradient-text">Users & Permissions</span></h1>
+                <p>View registered accounts, monitor vehicle/session volume, and manage administrator privileges.</p>
+            </div>
+            <div class="heading-actions">
+                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">
+                    ← Admin Dashboard
+                </a>
+            </div>
+        </section>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category if category in ['success', 'error'] else 'success' }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Filter & Search Bar -->
+        <div class="history-controls card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+            <div>
+                <strong>Total Registered Accounts:</strong> <span class="stat-cyan font-bold">{{ users|length }}</span>
+            </div>
+            <form action="{{ url_for('admin_users') }}" method="GET" class="search-form" style="display: flex; gap: 10px;">
+                <input type="text" name="q" placeholder="Search by name or email..." value="{{ search_q or '' }}" style="padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-light); color: var(--text);">
+                <button type="submit" class="btn btn-sm">Search</button>
+                {% if search_q %}
+                    <a href="{{ url_for('admin_users') }}" class="btn btn-secondary btn-sm">Clear</a>
+                {% endif %}
+            </form>
+        </div>
+
+        <!-- Users Data Table (Task 8.6) -->
+        <section class="admin-table-wrap card">
+            <h2>All Registered Users</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>User Name & Email</th>
+                        <th>Role</th>
+                        <th>Vehicles</th>
+                        <th>Sessions</th>
+                        <th>Total Paid</th>
+                        <th>Permissions Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in users %}
+                        <tr>
+                            <td>#{{ u.id }}</td>
+                            <td>
+                                <strong>{{ u.name }}</strong>
+                                {% if u.id == session.get('user_id') %}
+                                    <span class="user-you-tag">You</span>
+                                {% endif %}
+                                <br>
+                                <small class="muted-text">{{ u.email }}</small>
+                            </td>
+                            <td>
+                                {% if u.is_admin %}
+                                    <span class="status-pill status-active" style="background: rgba(56, 217, 214, 0.15); color: var(--cyan); border-color: rgba(56, 217, 214, 0.3);">
+                                        👑 Administrator
+                                    </span>
+                                {% else %}
+                                    <span class="status-pill status-completed">
+                                        👤 Standard User
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>{{ u.vehicle_count }} vehicle{{ 's' if u.vehicle_count != 1 else '' }}</td>
+                            <td>{{ u.session_count }} session{{ 's' if u.session_count != 1 else '' }}</td>
+                            <td>
+                                <strong class="stat-green">₹{{ "%.2f"|format(u.total_spent) }}</strong>
+                            </td>
+                            <td>
+                                {% if u.id == session.get('user_id') %}
+                                    <button class="btn btn-sm btn-secondary" disabled title="You cannot modify your own administrator permissions">
+                                        Current User
+                                    </button>
+                                {% else %}
+                                    <form action="{{ url_for('admin_user_toggle_role', user_id=u.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Change administrator role for {{ u.name }}?');">
+                                        {% if u.is_admin %}
+                                            <button type="submit" class="btn btn-danger btn-sm" title="Revoke Administrator role">
+                                                Demote to User
+                                            </button>
+                                        {% else %}
+                                            <button type="submit" class="btn btn-success btn-sm" title="Grant Administrator role">
+                                                Promote to Admin
+                                            </button>
+                                        {% endif %}
+                                    </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="7" class="muted-text">No user accounts found matching your query.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </main>
+
+    <footer>
+        <p>SmartPark · Smart Parking Management System</p>
+        <p>Phase 8: Admin Dashboard & User Management</p>
+    </footer>
+</body>
+</html>

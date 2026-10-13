@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Reports | SmartPark Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <a class="logo" href="{{ url_for('dashboard') }}">Smart<span>Park</span></a>
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('parking_slots') }}">Parking Slots</a>
+            <a href="{{ url_for('vehicles') }}">My Vehicles</a>
+            <a href="{{ url_for('active_session_view') }}" class="{{ 'nav-live-pill' if current_active_session else '' }}">Active Session ⏱️</a>
+            <a href="{{ url_for('history') }}">History & Bills</a>
+            <a href="{{ url_for('admin_pricing') }}">Pricing Tariffs</a>
+            <a href="{{ url_for('admin_dashboard') }}">Admin Dashboard</a>
+            <a href="{{ url_for('admin_slots') }}">Admin Slots</a>
+            <a href="{{ url_for('admin_users') }}">Manage Users</a>
+            <a href="{{ url_for('admin_reports') }}" class="active-nav">Reports</a>
+            <a href="{{ url_for('logout') }}">Logout</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <section class="dashboard-heading">
+            <div>
+                <p class="eyebrow">PHASE 8 · SYSTEM AUDIT & ANALYTICS REPORTS (TASKS 8.7 & 8.8)</p>
+                <h1>System <span class="gradient-text">Reports & Analytics</span></h1>
+                <p>Generate detailed audit logs for parking space utilization, vehicle occupancy, and revenue streams.</p>
+            </div>
+            <div class="heading-actions">
+                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">
+                    ← Admin Dashboard
+                </a>
+            </div>
+        </section>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category if category in ['success', 'error'] else 'success' }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Report Tabs Navigation -->
+        <div class="history-controls card">
+            <div class="history-tabs">
+                <a href="{{ url_for('admin_reports_occupancy') }}" class="tab-btn {{ 'active-tab' if tab == 'occupancy' else '' }}">
+                    🅿️ Parking Occupancy Reports (Task 8.7)
+                </a>
+                <a href="{{ url_for('admin_reports_revenue') }}" class="tab-btn {{ 'active-tab' if tab == 'revenue' else '' }}">
+                    💰 Revenue & Payment Reports (Task 8.8)
+                </a>
+            </div>
+        </div>
+
+        {% if tab == 'occupancy' %}
+            <!-- TASK 8.7: PARKING OCCUPANCY REPORT -->
+            <section class="stats-grid">
+                <div class="card stat-card">
+                    <p>Total Parking Spaces</p>
+                    <h2 class="stat-number">{{ total_slots }}</h2>
+                    <small class="card-caption">monitored bays</small>
+                </div>
+                <div class="card stat-card">
+                    <p>Currently Occupied</p>
+                    <h2 class="stat-number stat-yellow">{{ occupied_slots }}</h2>
+                    <small class="card-caption">vehicles parked right now</small>
+                </div>
+                <div class="card stat-card">
+                    <p>Overall Facility Occupancy</p>
+                    <h2 class="stat-number stat-cyan">{{ overall_rate }}%</h2>
+                    <small class="card-caption">capacity utilization</small>
+                </div>
+            </section>
+
+            <!-- Vehicle Category Occupancy Breakdown -->
+            <section class="admin-table-wrap card">
+                <div class="card-title-row">
+                    <h2>Occupancy by Vehicle Type</h2>
+                    <span class="muted-text">Aggregate distribution across vehicle categories</span>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Vehicle Category</th>
+                            <th>Total Sessions Logged</th>
+                            <th>Total Minutes Parked</th>
+                            <th>Total Fees Generated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cat in category_stats %}
+                            <tr>
+                                <td><strong>{{ cat.vehicle_category }}</strong></td>
+                                <td>{{ cat.total_sessions }}</td>
+                                <td>{{ cat.total_minutes|format_duration }}</td>
+                                <td><strong class="stat-green">₹{{ "%.2f"|format(cat.total_revenue) }}</strong></td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="4" class="muted-text">No category sessions logged yet.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- Slot-by-Slot Occupancy & Utilization Table -->
+            <section class="admin-table-wrap card">
+                <div class="card-title-row">
+                    <h2>Slot Utilization Breakdown (Task 8.7)</h2>
+                    <a href="{{ url_for('admin_reports_occupancy_export') }}" class="btn btn-secondary btn-sm">
+                        📥 Download Occupancy CSV
+                    </a>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Slot</th>
+                            <th>Status</th>
+                            <th>Sessions Count</th>
+                            <th>Time Parked</th>
+                            <th>Billed Hours</th>
+                            <th>Revenue Generated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in slot_stats %}
+                            <tr>
+                                <td><strong>{{ s.slot_number }}</strong></td>
+                                <td>
+                                    <span class="status-pill {{ 'status-active' if s.status == 'Available' else 'status-cancelled' }}">
+                                        {{ s.status }}
+                                    </span>
+                                </td>
+                                <td>{{ s.total_sessions }}</td>
+                                <td>{{ s.total_minutes|format_duration }} ({{ s.total_minutes }}m)</td>
+                                <td>{{ s.total_billed_hours }} hrs</td>
+                                <td><strong class="stat-green">₹{{ "%.2f"|format(s.total_revenue) }}</strong></td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="6" class="muted-text">No slots found in database.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </section>
+
+        {% elif tab == 'revenue' %}
+            <!-- TASK 8.8: REVENUE & PAYMENT REPORT -->
+            <section class="stats-grid">
+                <div class="card stat-card">
+                    <p>Total Revenue Collected</p>
+                    <h2 class="stat-number stat-green">₹{{ "%.2f"|format(total_revenue) }}</h2>
+                    <small class="card-caption">successful payments</small>
+                </div>
+                <div class="card stat-card">
+                    <p>Total Transactions</p>
+                    <h2 class="stat-number">{{ total_txns }}</h2>
+                    <small class="card-caption">all gateway attempts</small>
+                </div>
+                <div class="card stat-card">
+                    <p>Successful Payments</p>
+                    <h2 class="stat-number stat-green">{{ successful_txns }}</h2>
+                    <small class="card-caption">completed successfully</small>
+                </div>
+                <div class="card stat-card">
+                    <p>Failed / Declined Attempts</p>
+                    <h2 class="stat-number {{ 'stat-yellow' if failed_txns > 0 else '' }}">{{ failed_txns }}</h2>
+                    <small class="card-caption">declined or cancelled</small>
+                </div>
+            </section>
+
+            <!-- Revenue by Payment Method Breakdown -->
+            <section class="admin-table-wrap card">
+                <div class="card-title-row">
+                    <h2>Revenue by Payment Method</h2>
+                    <span class="muted-text">Financial volume across gateway channels</span>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Payment Channel / Method</th>
+                            <th>Transactions Count</th>
+                            <th>Total Revenue Collected</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in method_stats %}
+                            <tr>
+                                <td><strong>{{ m.payment_method }}</strong></td>
+                                <td>{{ m.txn_count }} transaction{{ 's' if m.txn_count != 1 else '' }}</td>
+                                <td><strong class="stat-green">₹{{ "%.2f"|format(m.total_amount) }}</strong></td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="3" class="muted-text">No payment records logged yet.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- Detailed Itemized Payment Ledger Table -->
+            <section class="admin-table-wrap card">
+                <div class="card-title-row">
+                    <h2>Itemized Payment Ledger (Task 8.8)</h2>
+                    <a href="{{ url_for('admin_reports_revenue_export') }}" class="btn btn-secondary btn-sm">
+                        📥 Download Revenue CSV
+                    </a>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Txn ID</th>
+                            <th>Invoice Ref</th>
+                            <th>Customer</th>
+                            <th>Slot</th>
+                            <th>Method</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                            <th>Date & Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t in transactions %}
+                            <tr>
+                                <td><code>{{ t.transaction_id }}</code></td>
+                                <td>{{ t.bill_reference }}</td>
+                                <td>
+                                    <strong>{{ t.user_name }}</strong><br>
+                                    <small class="muted-text">{{ t.user_email }}</small>
+                                </td>
+                                <td>Slot {{ t.slot_number }}</td>
+                                <td>{{ t.payment_method }}</td>
+                                <td><strong class="stat-green">₹{{ "%.2f"|format(t.amount) }}</strong></td>
+                                <td>
+                                    <span class="status-pill {{ 'status-active' if t.payment_status == 'Success' else 'status-cancelled' }}">
+                                        {{ t.payment_status }}
+                                    </span>
+                                    {% if t.failure_reason %}
+                                        <br><small class="attempt-err">{{ t.failure_reason }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>{{ t.payment_date|format_dt }}</td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="8" class="muted-text">No payment transactions recorded yet.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </section>
+        {% endif %}
+    </main>
+
+    <footer>
+        <p>SmartPark · Smart Parking Management System</p>
+        <p>Phase 8: Admin Reports & Analytics</p>
+    </footer>
+</body>
+</html>

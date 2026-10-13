@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | SmartPark</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <a class="logo" href="{{ url_for('dashboard') }}">Smart<span>Park</span></a>
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('parking_slots') }}">Parking Slots</a>
+            <a href="{{ url_for('vehicles') }}">My Vehicles</a>
+            <a href="{{ url_for('active_session_view') }}" class="{{ 'nav-live-pill' if current_active_session else '' }}">Active Session ⏱️</a>
+            <a href="{{ url_for('history') }}">History & Bills</a>
+            <a href="{{ url_for('admin_pricing') }}">Pricing Tariffs</a>
+            <a href="{{ url_for('admin_dashboard') }}" class="active-nav">Admin Dashboard</a>
+            <a href="{{ url_for('admin_slots') }}">Admin Slots</a>
+            <a href="{{ url_for('admin_users') }}">Manage Users</a>
+            <a href="{{ url_for('admin_reports') }}">Reports</a>
+            <a href="{{ url_for('logout') }}">Logout</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <section class="dashboard-heading">
+            <div>
+                <p class="eyebrow">PHASE 8 · ADMIN DASHBOARD & SYSTEM MONITORING</p>
+                <h1>Admin <span class="gradient-text">Overview & Analytics</span></h1>
+                <p>System-wide monitoring of parking slots, user accounts, occupancy metrics, and payment revenues.</p>
+            </div>
+            <div class="heading-actions">
+                <a href="{{ url_for('admin_slots') }}" class="btn">
+                    🅿️ Manage Slots →
+                </a>
+                <a href="{{ url_for('admin_users') }}" class="btn btn-secondary">
+                    👥 Manage Users →
+                </a>
+                <a href="{{ url_for('admin_reports') }}" class="btn btn-secondary">
+                    📊 System Reports →
+                </a>
+            </div>
+        </section>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category if category in ['success', 'error'] else 'success' }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Top High-Level KPI Cards (Task 8.2) -->
+        <section class="stats-grid">
+            <div class="card stat-card">
+                <p>Total Parking Slots</p>
+                <h2 class="stat-number">{{ metrics.total_slots }}</h2>
+                <small class="card-caption"><a href="{{ url_for('admin_slots') }}">Manage in Slot Manager →</a></small>
+            </div>
+            <div class="card stat-card">
+                <p>Available Slots</p>
+                <h2 class="stat-number stat-green">{{ metrics.available_slots }}</h2>
+                <small class="card-caption">ready for parking</small>
+            </div>
+            <div class="card stat-card">
+                <p>Occupied Slots</p>
+                <h2 class="stat-number {{ 'stat-yellow' if metrics.occupied_slots > 0 else '' }}">{{ metrics.occupied_slots }}</h2>
+                <small class="card-caption">vehicles currently parked</small>
+            </div>
+            <div class="card stat-card">
+                <p>Occupancy Rate</p>
+                <h2 class="stat-number stat-cyan">{{ metrics.occupancy_rate }}%</h2>
+                <div class="occupancy-progress-bar">
+                    <div class="occupancy-progress-fill" style="width: {{ metrics.occupancy_rate }}%;"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Secondary Metrics Grid: Users, Sessions, Revenue (Task 8.8) -->
+        <section class="stats-grid" style="margin-top: -20px;">
+            <div class="card stat-card">
+                <p>Registered Users</p>
+                <h2 class="stat-number">{{ metrics.total_users }}</h2>
+                <small class="card-caption"><a href="{{ url_for('admin_users') }}">View Users Table →</a></small>
+            </div>
+            <div class="card stat-card">
+                <p>Active Live Sessions</p>
+                <h2 class="stat-number stat-green">{{ metrics.active_sessions }}</h2>
+                <small class="card-caption">{{ metrics.completed_sessions }} completed total</small>
+            </div>
+            <div class="card stat-card">
+                <p>Total Revenue</p>
+                <h2 class="stat-number stat-green">₹{{ "%.2f"|format(metrics.total_revenue) }}</h2>
+                <small class="card-caption"><a href="{{ url_for('admin_reports_revenue') }}">Revenue Breakdown →</a></small>
+            </div>
+            <div class="card stat-card">
+                <p>Today's Collection</p>
+                <h2 class="stat-number stat-cyan">₹{{ "%.2f"|format(metrics.today_revenue) }}</h2>
+                <small class="card-caption">recorded today</small>
+            </div>
+        </section>
+
+        <!-- Real-Time Slot Visual Map & Quick Add (Task 8.2 & 8.3) -->
+        <section class="card admin-slot-overview-card">
+            <div class="card-title-row">
+                <div>
+                    <h2>Parking Slots Live Overview (Task 8.2)</h2>
+                    <p class="muted-text">Real-time occupancy status across all parking spaces</p>
+                </div>
+                <div class="slot-legend">
+                    <span class="legend-item"><span class="legend-dot dot-available"></span> Available ({{ metrics.available_slots }})</span>
+                    <span class="legend-item"><span class="legend-dot dot-occupied"></span> Occupied ({{ metrics.occupied_slots }})</span>
+                </div>
+            </div>
+
+            <div class="admin-slots-mini-grid">
+                {% for s in slots %}
+                    <div class="mini-slot-card {{ 'slot-card-available' if s.status == 'Available' else 'slot-card-occupied' }}">
+                        <div class="mini-slot-header">
+                            <span class="mini-slot-num">{{ s.slot_number }}</span>
+                            <span class="status-pill {{ 'status-active' if s.status == 'Available' else 'status-cancelled' }}">
+                                {{ s.status }}
+                            </span>
+                        </div>
+                        <div class="mini-slot-body">
+                            {% if s.status == 'Occupied' %}
+                                <p class="mini-slot-plate">{{ s.vehicle_number or 'Parked' }}</p>
+                                <small class="mini-slot-user">{{ s.booked_by_name or 'User' }}</small>
+                                <form action="{{ url_for('release_slot', slot_id=s.id) }}" method="POST" style="margin-top: 8px;">
+                                    <button class="btn btn-sm" type="submit" style="padding: 3px 8px; font-size: 0.75rem; width: 100%;">
+                                        Release
+                                    </button>
+                                </form>
+                            {% else %}
+                                <p class="mini-slot-vacant">Vacant</p>
+                                <small class="muted-text">Ready</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <!-- Quick Add Slot Form (Task 8.3) -->
+            <div class="quick-add-slot-box">
+                <h4>Quick Add Parking Slot (Task 8.3)</h4>
+                <form action="{{ url_for('admin_slots') }}" method="POST" class="inline-add-form">
+                    <input type="text" name="slot_number" placeholder="e.g. D01" minlength="2" maxlength="10" required>
+                    <button type="submit" class="btn btn-primary">➕ Add Slot</button>
+                    <a href="{{ url_for('admin_slots') }}" class="btn btn-secondary">Full Slot Manager →</a>
+                </form>
+            </div>
+        </section>
+
+        <!-- Two Column Activity Tables: Recent Sessions & Recent Payments -->
+        <div class="admin-activity-grid">
+            <!-- Recent Parking Sessions -->
+            <div class="card activity-col-card">
+                <div class="card-title-row">
+                    <h3>Recent Parking Sessions</h3>
+                    <a href="{{ url_for('history', view='all') }}" class="text-link">View All →</a>
+                </div>
+                <div class="admin-table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Slot</th>
+                                <th>Vehicle</th>
+                                <th>User</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ses in recent_sessions %}
+                                <tr>
+                                    <td><strong>{{ ses.slot_number }}</strong></td>
+                                    <td>{{ ses.vehicle_number }}</td>
+                                    <td>{{ ses.user_name }}</td>
+                                    <td>
+                                        <span class="status-pill {{ 'status-active' if ses.status == 'Active' else 'status-completed' }}">
+                                            {{ ses.status }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            {% else %}
+                                <tr>
+                                    <td colspan="4" class="muted-text">No parking sessions recorded yet.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Recent Payments (Task 8.8) -->
+            <div class="card activity-col-card">
+                <div class="card-title-row">
+                    <h3>Recent Payment Transactions</h3>
+                    <a href="{{ url_for('admin_reports_revenue') }}" class="text-link">Revenue Report →</a>
+                </div>
+                <div class="admin-table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Txn Ref</th>
+                                <th>Method</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in recent_payments %}
+                                <tr>
+                                    <td><code>{{ p.payment_reference }}</code></td>
+                                    <td>{{ p.payment_method }}</td>
+                                    <td><strong>₹{{ "%.2f"|format(p.amount) }}</strong></td>
+                                    <td>
+                                        <span class="status-pill {{ 'status-active' if p.payment_status == 'Success' else 'status-cancelled' }}">
+                                            {{ p.payment_status }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            {% else %}
+                                <tr>
+                                    <td colspan="4" class="muted-text">No payment transactions recorded yet.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>SmartPark · Smart Parking Management System</p>
+        <p>Phase 8: Admin Dashboard & System Performance Reports</p>
+    </footer>
+</body>
+</html>

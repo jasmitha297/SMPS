@@ -2,9 +2,11 @@ import sqlite3
 import re
 import uuid
 import math
+import csv
+from io import StringIO
 from datetime import datetime, timedelta
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, jsonify, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
@@ -161,11 +163,34 @@ def init_db():
         )
     """)
 
+    # Phase 7: Payments Table (Task 7.2)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            payment_reference TEXT NOT NULL UNIQUE,
+            bill_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            amount REAL NOT NULL,
+            payment_method TEXT NOT NULL,
+            transaction_id TEXT NOT NULL UNIQUE,
+            payment_status TEXT NOT NULL DEFAULT 'Success'
+                CHECK(payment_status IN ('Success', 'Failed', 'Pending')),
+            failure_reason TEXT,
+            payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (bill_id) REFERENCES billing_records(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
     # Indexes for performance and query efficiency
     conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_status ON parking_sessions(user_id, status)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_slot_status ON parking_sessions(slot_id, status)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_billing_session ON billing_records(session_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_billing_user ON billing_records(user_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_payments_bill ON payments(bill_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(payment_status)")
 
     # Ensure is_admin column in users table
     columns = [row["name"] for row in conn.execute("PRAGMA table_info(users)").fetchall()]
@@ -1316,6 +1341,13 @@ def bill_summary(session_id):
             WHERE b.session_id = ?
         """, (session_id,)).fetchone()
 
+    # Fetch latest successful payment record if available
+    latest_payment = conn.execute("""
+        SELECT * FROM payments
+        WHERE bill_id = ? AND payment_status = 'Success'
+        ORDER BY id DESC LIMIT 1
+    """, (bill_row["id"],)).fetchone()
+
     conn.close()
 
     if not bill_row:
@@ -1326,14 +1358,44 @@ def bill_summary(session_id):
         flash("Unauthorized access to billing invoice.", "error")
         return redirect(url_for("history"))
 
-    return render_template("bill_summary.html", bill=dict(bill_row))
+    return render_template("bill_summary.html", bill=dict(bill_row), payment=dict(latest_payment) if latest_payment else None)
+
+
+def record_payment_transaction(bill_id, user_id, amount, payment_method="Simulated Payment", transaction_id=None, payment_status="Success", failure_reason=None):
+    """
+    Task 7.2 & 7.5: Store payment transaction details in payments table
+    and update bill status upon successful payment (Task 7.6).
+    """
+    conn = get_db()
+    if not transaction_id:
+        transaction_id = f"TXN-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
+    payment_reference = f"PAY-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    cursor = conn.execute("""
+        INSERT INTO payments (
+            payment_reference, bill_id, user_id, amount, payment_method,
+            transaction_id, payment_status, failure_reason, payment_date
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        payment_reference, bill_id, user_id, float(amount), payment_method,
+        transaction_id, payment_status, failure_reason, now_str
+    ))
+    payment_id = cursor.lastrowid
+
+    if payment_status == "Success":
+        conn.execute("UPDATE billing_records SET payment_status = 'Paid' WHERE id = ?", (bill_id,))
+
+    conn.commit()
+    conn.close()
+    return payment_id
 
 
 @app.route("/pay-bill/<int:bill_id>", methods=["POST"])
 @login_required
 def pay_bill(bill_id):
     """
-    Task 6.7: Friendly simulation for Phase 7 payment transition.
+    Task 6.7 & Task 7.6: Fast-path payment simulation (preserves backward compatibility).
     """
     conn = get_db()
     bill = conn.execute("SELECT * FROM billing_records WHERE id = ?", (bill_id,)).fetchone()
@@ -1347,12 +1409,150 @@ def pay_bill(bill_id):
         flash("Unauthorized.", "error")
         return redirect(url_for("history"))
 
-    conn.execute("UPDATE billing_records SET payment_status = 'Paid' WHERE id = ?", (bill_id,))
-    conn.commit()
+    if bill["payment_status"] == "Paid":
+        conn.close()
+        flash("This bill is already paid.", "info")
+        return redirect(url_for("bill_summary", session_id=bill["session_id"]))
     conn.close()
+
+    record_payment_transaction(
+        bill_id=bill["id"],
+        user_id=bill["user_id"],
+        amount=bill["final_amount"],
+        payment_method="Simulated Payment",
+        payment_status="Success"
+    )
 
     flash("Payment simulated successfully! Invoice marked as Paid.", "success")
     return redirect(url_for("bill_summary", session_id=bill["session_id"]))
+
+
+# ----------------------------------------------------
+# PHASE 7: PAYMENT MANAGEMENT (Tasks 7.1 - 7.7)
+# ----------------------------------------------------
+
+@app.route("/pay/<int:bill_id>", methods=["GET", "POST"])
+@login_required
+def pay_interface(bill_id):
+    """
+    Task 7.1, 7.3, 7.4, 7.5, 7.6:
+    Dedicated Payment Interface with multiple payment methods,
+    sandbox simulation modes (success/failure), transaction logging,
+    and bill status updating.
+    """
+    conn = get_db()
+    bill = conn.execute("""
+        SELECT b.*, s.slot_number, ps.session_code, v.model, v.color, v.vehicle_type,
+               u.name AS user_name, u.email AS user_email
+        FROM billing_records b
+        JOIN parking_slots s ON b.slot_id = s.id
+        JOIN parking_sessions ps ON b.session_id = ps.id
+        LEFT JOIN vehicles v ON ps.vehicle_id = v.id
+        JOIN users u ON b.user_id = u.id
+        WHERE b.id = ?
+    """, (bill_id,)).fetchone()
+
+    if not bill:
+        conn.close()
+        flash("Bill record not found.", "error")
+        return redirect(url_for("history"))
+
+    if bill["user_id"] != session["user_id"] and not session.get("is_admin"):
+        conn.close()
+        flash("Unauthorized access to payment gateway.", "error")
+        return redirect(url_for("history"))
+
+    # If bill is already paid, redirect to receipt or invoice
+    if bill["payment_status"] == "Paid":
+        payment = conn.execute("""
+            SELECT id FROM payments
+            WHERE bill_id = ? AND payment_status = 'Success'
+            ORDER BY id DESC LIMIT 1
+        """, (bill_id,)).fetchone()
+        conn.close()
+        flash("This invoice has already been paid.", "info")
+        if payment:
+            return redirect(url_for("payment_receipt", payment_id=payment["id"]))
+        return redirect(url_for("bill_summary", session_id=bill["session_id"]))
+
+    if request.method == "POST":
+        payment_method = request.form.get("payment_method", "Credit / Debit Card").strip()
+        simulation_mode = request.form.get("simulation_mode", "success").strip().lower()
+        failure_reason = request.form.get("failure_reason", "Transaction declined by issuing bank").strip()
+
+        # Handle failure simulation (Task 7.4)
+        if simulation_mode == "failure":
+            record_payment_transaction(
+                bill_id=bill["id"],
+                user_id=bill["user_id"],
+                amount=bill["final_amount"],
+                payment_method=payment_method,
+                payment_status="Failed",
+                failure_reason=failure_reason or "Payment failed"
+            )
+            conn.close()
+            flash(f"Payment Failed: {failure_reason}. Please retry or choose another payment method.", "error")
+            return redirect(url_for("pay_interface", bill_id=bill_id))
+
+        # Handle success simulation (Task 7.4, 7.5, 7.6)
+        payment_id = record_payment_transaction(
+            bill_id=bill["id"],
+            user_id=bill["user_id"],
+            amount=bill["final_amount"],
+            payment_method=payment_method,
+            payment_status="Success"
+        )
+        conn.close()
+        flash("Payment completed successfully! Official receipt generated.", "success")
+        return redirect(url_for("payment_receipt", payment_id=payment_id))
+
+    # GET request - fetch any previous failed payment attempts for context
+    previous_attempts = conn.execute("""
+        SELECT * FROM payments WHERE bill_id = ? ORDER BY id DESC LIMIT 3
+    """, (bill_id,)).fetchall()
+    conn.close()
+
+    return render_template(
+        "payment.html",
+        bill=dict(bill),
+        previous_attempts=[dict(p) for p in previous_attempts]
+    )
+
+
+@app.route("/payment/receipt/<int:payment_id>")
+@login_required
+def payment_receipt(payment_id):
+    """
+    Task 7.7: Generate and display printable payment confirmation receipt.
+    """
+    conn = get_db()
+    payment = conn.execute("""
+        SELECT p.*,
+               b.bill_reference, b.entry_time, b.exit_time, b.duration_minutes,
+               b.billed_hours, b.hourly_rate, b.pricing_rule_name,
+               s.slot_number,
+               ps.session_code,
+               v.vehicle_number, v.model, v.color, v.vehicle_type,
+               u.name AS user_name, u.email AS user_email
+        FROM payments p
+        JOIN billing_records b ON p.bill_id = b.id
+        JOIN parking_slots s ON b.slot_id = s.id
+        JOIN parking_sessions ps ON b.session_id = ps.id
+        LEFT JOIN vehicles v ON ps.vehicle_id = v.id
+        JOIN users u ON p.user_id = u.id
+        WHERE p.id = ?
+    """, (payment_id,)).fetchone()
+    conn.close()
+
+    if not payment:
+        flash("Payment receipt not found.", "error")
+        return redirect(url_for("history"))
+
+    if payment["user_id"] != session["user_id"] and not session.get("is_admin"):
+        flash("Unauthorized access to payment receipt.", "error")
+        return redirect(url_for("history"))
+
+    return render_template("payment_receipt.html", payment=dict(payment))
 
 
 # ----------------------------------------------------
@@ -1771,6 +1971,371 @@ def admin_pricing_toggle(rule_id):
         flash("Rule status updated.", "success")
     conn.close()
     return redirect(url_for("admin_pricing"))
+
+
+# ----------------------------------------------------
+# PHASE 8: ADMIN DASHBOARD & REPORTS (Tasks 8.1 - 8.8)
+# ----------------------------------------------------
+
+@app.route("/admin")
+@app.route("/admin/dashboard")
+@admin_required
+def admin_dashboard():
+    """
+    Task 8.1 & 8.2: Comprehensive Admin Dashboard with slot metrics,
+    occupancy gauges, system activity, and quick navigation.
+    """
+    conn = get_db()
+
+    total_slots = conn.execute("SELECT COUNT(*) FROM parking_slots").fetchone()[0]
+    available_slots = conn.execute("SELECT COUNT(*) FROM parking_slots WHERE status = 'Available'").fetchone()[0]
+    occupied_slots = conn.execute("SELECT COUNT(*) FROM parking_slots WHERE status = 'Occupied'").fetchone()[0]
+    occupancy_rate = round((occupied_slots / total_slots * 100), 1) if total_slots > 0 else 0.0
+
+    total_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    total_vehicles = conn.execute("SELECT COUNT(*) FROM vehicles").fetchone()[0]
+    active_sessions_count = conn.execute("SELECT COUNT(*) FROM parking_sessions WHERE status = 'Active'").fetchone()[0]
+    completed_sessions_count = conn.execute("SELECT COUNT(*) FROM parking_sessions WHERE status = 'Completed'").fetchone()[0]
+    active_bookings_count = conn.execute("SELECT COUNT(*) FROM bookings WHERE status = 'Active'").fetchone()[0]
+
+    # Revenue metrics
+    total_rev_row = conn.execute("""
+        SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payment_status = 'Success'
+    """).fetchone()[0]
+    # Fallback to paid billing records if payments table hasn't recorded older mock bills
+    paid_bills_rev = conn.execute("""
+        SELECT COALESCE(SUM(final_amount), 0) FROM billing_records WHERE payment_status = 'Paid'
+    """).fetchone()[0]
+    total_revenue = max(total_rev_row, paid_bills_rev)
+
+    today_revenue = conn.execute("""
+        SELECT COALESCE(SUM(amount), 0) FROM payments
+        WHERE payment_status = 'Success' AND date(payment_date) = date('now')
+    """).fetchone()[0]
+
+    # Recent payments (Task 8.8)
+    recent_payments = conn.execute("""
+        SELECT p.*, b.bill_reference, u.name AS user_name, u.email AS user_email
+        FROM payments p
+        JOIN billing_records b ON p.bill_id = b.id
+        JOIN users u ON p.user_id = u.id
+        ORDER BY p.id DESC LIMIT 6
+    """).fetchall()
+
+    # Recent parking sessions (Task 8.7)
+    recent_sessions = conn.execute("""
+        SELECT ps.*, s.slot_number, u.name AS user_name, v.vehicle_type
+        FROM parking_sessions ps
+        JOIN parking_slots s ON ps.slot_id = s.id
+        JOIN users u ON ps.user_id = u.id
+        LEFT JOIN vehicles v ON ps.vehicle_id = v.id
+        ORDER BY ps.id DESC LIMIT 6
+    """).fetchall()
+
+    # Slot statuses for visual slot map (Task 8.2)
+    slots = conn.execute("""
+        SELECT s.*, u.name AS booked_by_name, u.email AS booked_by_email
+        FROM parking_slots s
+        LEFT JOIN users u ON s.booked_by = u.id
+        ORDER BY s.slot_number ASC
+    """).fetchall()
+
+    conn.close()
+
+    metrics = {
+        "total_slots": total_slots,
+        "available_slots": available_slots,
+        "occupied_slots": occupied_slots,
+        "occupancy_rate": occupancy_rate,
+        "total_users": total_users,
+        "total_vehicles": total_vehicles,
+        "active_sessions": active_sessions_count,
+        "completed_sessions": completed_sessions_count,
+        "active_bookings": active_bookings_count,
+        "total_revenue": total_revenue,
+        "today_revenue": today_revenue
+    }
+
+    return render_template(
+        "admin_dashboard.html",
+        metrics=metrics,
+        slots=[dict(s) for s in slots],
+        recent_payments=[dict(p) for p in recent_payments],
+        recent_sessions=[dict(s) for s in recent_sessions]
+    )
+
+
+@app.route("/admin/users")
+@admin_required
+def admin_users():
+    """
+    Task 8.6: Display and manage registered system users.
+    """
+    search_q = request.args.get("q", "").strip().lower()
+    conn = get_db()
+
+    if search_q:
+        pattern = f"%{search_q}%"
+        users = conn.execute("""
+            SELECT u.id, u.name, u.email, u.is_admin,
+                   (SELECT COUNT(*) FROM vehicles v WHERE v.user_id = u.id) AS vehicle_count,
+                   (SELECT COUNT(*) FROM parking_sessions ps WHERE ps.user_id = u.id) AS session_count,
+                   (SELECT COUNT(*) FROM bookings b WHERE b.user_id = u.id) AS booking_count,
+                   (SELECT COALESCE(SUM(br.final_amount), 0) FROM billing_records br WHERE br.user_id = u.id AND br.payment_status = 'Paid') AS total_spent
+            FROM users u
+            WHERE LOWER(u.name) LIKE ? OR LOWER(u.email) LIKE ?
+            ORDER BY u.id ASC
+        """, (pattern, pattern)).fetchall()
+    else:
+        users = conn.execute("""
+            SELECT u.id, u.name, u.email, u.is_admin,
+                   (SELECT COUNT(*) FROM vehicles v WHERE v.user_id = u.id) AS vehicle_count,
+                   (SELECT COUNT(*) FROM parking_sessions ps WHERE ps.user_id = u.id) AS session_count,
+                   (SELECT COUNT(*) FROM bookings b WHERE b.user_id = u.id) AS booking_count,
+                   (SELECT COALESCE(SUM(br.final_amount), 0) FROM billing_records br WHERE br.user_id = u.id AND br.payment_status = 'Paid') AS total_spent
+            FROM users u
+            ORDER BY u.id ASC
+        """).fetchall()
+
+    conn.close()
+    return render_template("admin_users.html", users=[dict(u) for u in users], search_q=search_q)
+
+
+@app.route("/admin/user/<int:user_id>/toggle-admin", methods=["POST"])
+@admin_required
+def admin_user_toggle_role(user_id):
+    """
+    Task 8.6: Promote or demote user administrator status with safety guards.
+    """
+    if user_id == session.get("user_id"):
+        flash("Safety rule: You cannot modify your own administrator permissions.", "error")
+        return redirect(url_for("admin_users"))
+
+    conn = get_db()
+    target_user = conn.execute("SELECT id, name, is_admin FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not target_user:
+        conn.close()
+        flash("User not found.", "error")
+        return redirect(url_for("admin_users"))
+
+    # If demoting from admin, make sure there is at least one other active admin
+    if target_user["is_admin"] == 1:
+        admin_count = conn.execute("SELECT COUNT(*) FROM users WHERE is_admin = 1").fetchone()[0]
+        if admin_count <= 1:
+            conn.close()
+            flash("Action rejected: Cannot demote the last remaining system administrator.", "error")
+            return redirect(url_for("admin_users"))
+
+    new_role = 0 if target_user["is_admin"] == 1 else 1
+    conn.execute("UPDATE users SET is_admin = ? WHERE id = ?", (new_role, user_id))
+    conn.commit()
+    conn.close()
+
+    action_label = "promoted to Administrator" if new_role == 1 else "demoted to Standard User"
+    flash(f"User '{target_user['name']}' has been {action_label}.", "success")
+    return redirect(url_for("admin_users"))
+
+
+@app.route("/admin/reports")
+@admin_required
+def admin_reports():
+    """
+    Task 8.7 & 8.8: Reports Hub. Defaults to occupancy report.
+    """
+    return redirect(url_for("admin_reports_occupancy"))
+
+
+@app.route("/admin/reports/occupancy")
+@admin_required
+def admin_reports_occupancy():
+    """
+    Task 8.7: Generate parking slot occupancy & utilization reports.
+    """
+    conn = get_db()
+
+    total_slots = conn.execute("SELECT COUNT(*) FROM parking_slots").fetchone()[0]
+    occupied_slots = conn.execute("SELECT COUNT(*) FROM parking_slots WHERE status = 'Occupied'").fetchone()[0]
+    overall_rate = round((occupied_slots / total_slots * 100), 1) if total_slots > 0 else 0.0
+
+    # Per-slot utilization statistics
+    slot_stats = conn.execute("""
+        SELECT s.id, s.slot_number, s.status,
+               COUNT(ps.id) AS total_sessions,
+               COALESCE(SUM(ps.duration_minutes), 0) AS total_minutes,
+               COALESCE(SUM(ps.billed_hours), 0) AS total_billed_hours,
+               COALESCE(SUM(ps.calculated_fee), 0) AS total_revenue
+        FROM parking_slots s
+        LEFT JOIN parking_sessions ps ON s.id = ps.slot_id
+        GROUP BY s.id
+        ORDER BY total_sessions DESC, s.slot_number ASC
+    """).fetchall()
+
+    # Per vehicle category breakdown
+    category_stats = conn.execute("""
+        SELECT COALESCE(v.vehicle_type, 'Car') AS vehicle_category,
+               COUNT(ps.id) AS total_sessions,
+               COALESCE(SUM(ps.duration_minutes), 0) AS total_minutes,
+               COALESCE(SUM(ps.calculated_fee), 0) AS total_revenue
+        FROM parking_sessions ps
+        LEFT JOIN vehicles v ON ps.vehicle_id = v.id
+        GROUP BY vehicle_category
+        ORDER BY total_sessions DESC
+    """).fetchall()
+
+    conn.close()
+
+    return render_template(
+        "admin_reports.html",
+        tab="occupancy",
+        total_slots=total_slots,
+        occupied_slots=occupied_slots,
+        overall_rate=overall_rate,
+        slot_stats=[dict(s) for s in slot_stats],
+        category_stats=[dict(c) for c in category_stats]
+    )
+
+
+@app.route("/admin/reports/occupancy/export")
+@admin_required
+def admin_reports_occupancy_export():
+    """
+    Task 8.7: Export parking occupancy report to CSV file.
+    """
+    conn = get_db()
+    slot_stats = conn.execute("""
+        SELECT s.id, s.slot_number, s.status,
+               COUNT(ps.id) AS total_sessions,
+               COALESCE(SUM(ps.duration_minutes), 0) AS total_minutes,
+               COALESCE(SUM(ps.billed_hours), 0) AS total_billed_hours,
+               COALESCE(SUM(ps.calculated_fee), 0) AS total_revenue
+        FROM parking_slots s
+        LEFT JOIN parking_sessions ps ON s.id = ps.slot_id
+        GROUP BY s.id
+        ORDER BY s.slot_number ASC
+    """).fetchall()
+    conn.close()
+
+    si = StringIO()
+    writer = csv.writer(si)
+    writer.writerow(["Slot ID", "Slot Number", "Current Status", "Total Sessions", "Total Minutes Parked", "Total Billed Hours", "Total Revenue (INR)"])
+
+    for s in slot_stats:
+        writer.writerow([
+            s["id"],
+            s["slot_number"],
+            s["status"],
+            s["total_sessions"],
+            s["total_minutes"],
+            s["total_billed_hours"],
+            f"{s['total_revenue']:.2f}"
+        ])
+
+    output = si.getvalue()
+    si.close()
+
+    return Response(
+        output,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=parking_occupancy_report.csv"}
+    )
+
+
+@app.route("/admin/reports/revenue")
+@admin_required
+def admin_reports_revenue():
+    """
+    Task 8.8: Generate revenue & financial payment reports.
+    """
+    conn = get_db()
+
+    total_revenue_val = conn.execute("""
+        SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payment_status = 'Success'
+    """).fetchone()[0]
+    paid_bills_val = conn.execute("""
+        SELECT COALESCE(SUM(final_amount), 0) FROM billing_records WHERE payment_status = 'Paid'
+    """).fetchone()[0]
+    total_revenue = max(total_revenue_val, paid_bills_val)
+
+    total_txns = conn.execute("SELECT COUNT(*) FROM payments").fetchone()[0]
+    successful_txns = conn.execute("SELECT COUNT(*) FROM payments WHERE payment_status = 'Success'").fetchone()[0]
+    failed_txns = conn.execute("SELECT COUNT(*) FROM payments WHERE payment_status = 'Failed'").fetchone()[0]
+
+    # Payment method breakdown
+    method_stats = conn.execute("""
+        SELECT payment_method,
+               COUNT(*) AS txn_count,
+               COALESCE(SUM(CASE WHEN payment_status = 'Success' THEN amount ELSE 0 END), 0) AS total_amount
+        FROM payments
+        GROUP BY payment_method
+        ORDER BY total_amount DESC
+    """).fetchall()
+
+    # Itemized transactions
+    transactions = conn.execute("""
+        SELECT p.*, b.bill_reference, u.name AS user_name, u.email AS user_email, s.slot_number
+        FROM payments p
+        JOIN billing_records b ON p.bill_id = b.id
+        JOIN parking_slots s ON b.slot_id = s.id
+        JOIN users u ON p.user_id = u.id
+        ORDER BY p.id DESC
+    """).fetchall()
+
+    conn.close()
+
+    return render_template(
+        "admin_reports.html",
+        tab="revenue",
+        total_revenue=total_revenue,
+        total_txns=total_txns,
+        successful_txns=successful_txns,
+        failed_txns=failed_txns,
+        method_stats=[dict(m) for m in method_stats],
+        transactions=[dict(t) for t in transactions]
+    )
+
+
+@app.route("/admin/reports/revenue/export")
+@admin_required
+def admin_reports_revenue_export():
+    """
+    Task 8.8: Export revenue and payment ledger report to CSV file.
+    """
+    conn = get_db()
+    transactions = conn.execute("""
+        SELECT p.*, b.bill_reference, u.name AS user_name, u.email AS user_email
+        FROM payments p
+        JOIN billing_records b ON p.bill_id = b.id
+        JOIN users u ON p.user_id = u.id
+        ORDER BY p.id DESC
+    """).fetchall()
+    conn.close()
+
+    si = StringIO()
+    writer = csv.writer(si)
+    writer.writerow(["Transaction ID", "Payment Reference", "Bill Reference", "Customer Name", "Customer Email", "Amount (INR)", "Payment Method", "Status", "Failure Reason", "Payment Date"])
+
+    for t in transactions:
+        writer.writerow([
+            t["transaction_id"],
+            t["payment_reference"],
+            t["bill_reference"],
+            t["user_name"],
+            t["user_email"],
+            f"{t['amount']:.2f}",
+            t["payment_method"],
+            t["payment_status"],
+            t["failure_reason"] or "",
+            t["payment_date"]
+        ])
+
+    output = si.getvalue()
+    si.close()
+
+    return Response(
+        output,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=revenue_payments_report.csv"}
+    )
 
 
 

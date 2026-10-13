@@ -2194,3 +2194,456 @@ footer {
         align-items: stretch;
     }
 }
+
+/* ==========================================================================
+   PHASE 7: PAYMENT MANAGEMENT & CHECKOUT GATEWAY
+   ========================================================================== */
+
+.payment-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.3fr;
+    gap: 30px;
+    align-items: start;
+    margin-top: 20px;
+}
+
+.payment-summary-card {
+    padding: 24px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+}
+
+.summary-details-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 20px 0;
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.95rem;
+}
+
+.summary-divider {
+    border: none;
+    border-top: 1px dashed var(--border);
+    margin: 20px 0;
+}
+
+.summary-amount-box {
+    background: rgba(56, 217, 214, 0.06);
+    border: 1px solid rgba(56, 217, 214, 0.2);
+    border-radius: 12px;
+    padding: 18px;
+    text-align: center;
+}
+
+.amount-label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+}
+
+.amount-val {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: var(--cyan);
+    margin-bottom: 4px;
+}
+
+.payment-form-card {
+    padding: 28px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+}
+
+.payment-methods-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.method-card {
+    display: flex;
+    align-items: center;
+    padding: 12px 14px;
+    background: var(--panel-light);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.method-card:hover {
+    border-color: var(--cyan);
+}
+
+.method-card input[type="radio"] {
+    margin-right: 12px;
+    accent-color: var(--cyan);
+}
+
+.method-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.method-icon {
+    font-size: 1.4rem;
+}
+
+.method-content strong {
+    display: block;
+    font-size: 0.9rem;
+    line-height: 1.2;
+}
+
+.method-content small {
+    font-size: 0.75rem;
+    color: var(--muted);
+}
+
+.method-fields-box {
+    background: rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+}
+
+.styled-select {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: var(--panel-light);
+    color: var(--text);
+    border: 1px solid var(--border);
+    font-size: 0.95rem;
+}
+
+.sandbox-control-card {
+    background: rgba(255, 179, 0, 0.06);
+    border: 1px dashed rgba(255, 179, 0, 0.35);
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 24px;
+}
+
+.sandbox-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.sandbox-badge {
+    background: rgba(255, 179, 0, 0.2);
+    color: #ffb300;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 20px;
+}
+
+.previous-attempts-card {
+    margin-top: 20px;
+    padding: 18px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.attempts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.attempt-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: var(--panel-light);
+    border-radius: 8px;
+    font-size: 0.85rem;
+}
+
+.attempt-err {
+    color: #ff6b6b;
+    font-size: 0.8rem;
+    margin-top: 4px;
+}
+
+.attempt-meta {
+    font-size: 0.75rem;
+    color: var(--muted);
+}
+
+/* Receipt Styles (Task 7.7) */
+.receipt-wrapper {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.receipt-card {
+    padding: 36px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+}
+
+.receipt-status-banner {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.status-check-circle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(63, 224, 160, 0.15);
+    color: var(--green);
+    font-size: 2rem;
+    font-weight: 800;
+    border: 2px solid var(--green);
+    margin-bottom: 14px;
+}
+
+.receipt-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.receipt-meta-item {
+    background: var(--panel-light);
+    padding: 12px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+}
+
+.meta-label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.meta-val {
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+.receipt-amount-box {
+    background: rgba(63, 224, 160, 0.06);
+    border: 1px solid rgba(63, 224, 160, 0.2);
+    border-radius: 14px;
+    padding: 22px;
+    margin: 28px 0;
+}
+
+.amount-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 1rem;
+    margin-bottom: 8px;
+}
+
+.total-paid-row {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-top: 10px;
+}
+
+.receipt-footer-actions {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 24px;
+}
+
+/* ==========================================================================
+   PHASE 8: ADMIN DASHBOARD & SYSTEM MONITORING
+   ========================================================================== */
+
+.occupancy-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.occupancy-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--cyan), var(--green));
+    border-radius: 10px;
+    transition: width 0.4s ease;
+}
+
+.admin-slot-overview-card {
+    padding: 24px;
+    margin-bottom: 30px;
+}
+
+.slot-legend {
+    display: flex;
+    gap: 16px;
+    font-size: 0.85rem;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.dot-available {
+    background: var(--green);
+}
+
+.dot-occupied {
+    background: #ffb300;
+}
+
+.admin-slots-mini-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 14px;
+    margin: 20px 0;
+}
+
+.mini-slot-card {
+    background: var(--panel-light);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    transition: transform 0.15s ease;
+}
+
+.mini-slot-card:hover {
+    transform: translateY(-2px);
+}
+
+.slot-card-available {
+    border-color: rgba(63, 224, 160, 0.3);
+}
+
+.slot-card-occupied {
+    border-color: rgba(255, 179, 0, 0.4);
+    background: rgba(255, 179, 0, 0.05);
+}
+
+.mini-slot-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.mini-slot-num {
+    font-weight: 800;
+    font-size: 1rem;
+    color: var(--cyan);
+}
+
+.mini-slot-plate {
+    font-weight: 600;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mini-slot-user {
+    color: var(--muted);
+    font-size: 0.75rem;
+}
+
+.mini-slot-vacant {
+    color: var(--green);
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.quick-add-slot-box {
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+}
+
+.inline-add-form {
+    display: flex;
+    gap: 12px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.inline-add-form input {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel-light);
+    color: var(--text);
+    min-width: 140px;
+}
+
+.admin-activity-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+.activity-col-card {
+    padding: 22px;
+}
+
+.user-you-tag {
+    display: inline-block;
+    background: rgba(56, 217, 214, 0.2);
+    color: var(--cyan);
+    font-size: 0.7rem;
+    padding: 1px 6px;
+    border-radius: 10px;
+    margin-left: 6px;
+}
+
+@media (max-width: 900px) {
+    .payment-grid {
+        grid-template-columns: 1fr;
+    }
+    .admin-activity-grid {
+        grid-template-columns: 1fr;
+    }
+}
+

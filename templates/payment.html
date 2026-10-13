@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Checkout | SmartPark</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <a class="logo" href="{{ url_for('dashboard') }}">Smart<span>Park</span></a>
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('parking_slots') }}">Parking Slots</a>
+            <a href="{{ url_for('vehicles') }}">My Vehicles</a>
+            <a href="{{ url_for('active_session_view') }}" class="{{ 'nav-live-pill' if current_active_session else '' }}">Active Session ⏱️</a>
+            <a href="{{ url_for('history') }}">History & Bills</a>
+            <a href="{{ url_for('admin_pricing') }}">Pricing Tariffs</a>
+            {% if is_admin %}
+                <a href="{{ url_for('admin_dashboard') }}">Admin Dashboard</a>
+                <a href="{{ url_for('admin_slots') }}">Admin Slots</a>
+            {% endif %}
+            <a href="{{ url_for('logout') }}">Logout</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <section class="dashboard-heading">
+            <div>
+                <p class="eyebrow">PHASE 7 · SECURE PAYMENT MANAGEMENT</p>
+                <h1>Payment <span class="gradient-text">Checkout</span></h1>
+                <p>Select your payment method and complete your parking fee transaction.</p>
+            </div>
+            <div class="heading-actions">
+                <a href="{{ url_for('bill_summary', session_id=bill.session_id) }}" class="btn btn-secondary">
+                    ← Return to Invoice
+                </a>
+            </div>
+        </section>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category if category in ['success', 'error'] else 'success' }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="payment-grid">
+            <!-- Left Column: Bill & Parking Summary -->
+            <div class="payment-summary-col">
+                <div class="card payment-summary-card">
+                    <div class="card-title-row">
+                        <h3>Parking Invoice Summary</h3>
+                        <span class="booking-ref-badge">{{ bill.bill_reference }}</span>
+                    </div>
+
+                    <div class="summary-details-list">
+                        <div class="summary-row">
+                            <span class="muted-text">Billed Customer:</span>
+                            <strong>{{ bill.user_name }}</strong>
+                        </div>
+                        <div class="summary-row">
+                            <span class="muted-text">Vehicle:</span>
+                            <span class="plate-text-pill">{{ bill.vehicle_number }}</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="muted-text">Vehicle Category:</span>
+                            <span>{{ bill.vehicle_type or 'Car' }}{% if bill.model %} · {{ bill.model }}{% endif %}</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="muted-text">Parking Slot:</span>
+                            <strong class="text-highlight">Slot {{ bill.slot_number }}</strong>
+                        </div>
+                        <div class="summary-row">
+                            <span class="muted-text">Parking Duration:</span>
+                            <span>{{ bill.duration_minutes|format_duration }} ({{ bill.billed_hours }} hr{{ 's' if bill.billed_hours > 1 else '' }})</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="muted-text">Tariff Rate:</span>
+                            <span>₹{{ "%.2f"|format(bill.hourly_rate) }} / hr ({{ bill.pricing_rule_name }})</span>
+                        </div>
+                    </div>
+
+                    <hr class="summary-divider">
+
+                    <div class="summary-amount-box">
+                        <span class="amount-label">Total Payable Amount</span>
+                        <h2 class="amount-val">₹{{ "%.2f"|format(bill.final_amount) }}</h2>
+                        <small class="muted-text">Inclusive of all applicable facility tariffs & taxes</small>
+                    </div>
+                </div>
+
+                {% if previous_attempts %}
+                    <div class="card previous-attempts-card">
+                        <h4>Recent Transaction Attempts</h4>
+                        <div class="attempts-list">
+                            {% for att in previous_attempts %}
+                                <div class="attempt-item {{ 'attempt-success' if att.payment_status == 'Success' else 'attempt-failed' }}">
+                                    <div>
+                                        <strong>{{ att.payment_method }}</strong> · <code>{{ att.transaction_id }}</code>
+                                        <p class="attempt-meta">{{ att.payment_date|format_dt }}</p>
+                                        {% if att.failure_reason %}
+                                            <p class="attempt-err">Reason: {{ att.failure_reason }}</p>
+                                        {% endif %}
+                                    </div>
+                                    <span class="status-pill {{ 'status-active' if att.payment_status == 'Success' else 'status-cancelled' }}">
+                                        {{ att.payment_status }}
+                                    </span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Right Column: Payment Gateway Interface (Task 7.1) -->
+            <div class="payment-form-col">
+                <form action="{{ url_for('pay_interface', bill_id=bill.id) }}" method="POST" class="card payment-form-card" id="paymentForm">
+                    <h3>Choose Payment Method</h3>
+                    <p class="muted-text" style="margin-bottom: 20px;">All transactions are encrypted with 256-bit SSL security.</p>
+
+                    <!-- Payment Method Radio Options -->
+                    <div class="payment-methods-grid">
+                        <label class="method-card">
+                            <input type="radio" name="payment_method" value="Credit / Debit Card" checked onchange="updatePaymentFields('card')">
+                            <div class="method-content">
+                                <span class="method-icon">💳</span>
+                                <div>
+                                    <strong>Card Payment</strong>
+                                    <small>Visa, MasterCard, RuPay</small>
+                                </div>
+                            </div>
+                        </label>
+
+                        <label class="method-card">
+                            <input type="radio" name="payment_method" value="UPI / QR Code" onchange="updatePaymentFields('upi')">
+                            <div class="method-content">
+                                <span class="method-icon">📱</span>
+                                <div>
+                                    <strong>UPI & QR</strong>
+                                    <small>GPay, PhonePe, Paytm</small>
+                                </div>
+                            </div>
+                        </label>
+
+                        <label class="method-card">
+                            <input type="radio" name="payment_method" value="Net Banking" onchange="updatePaymentFields('netbanking')">
+                            <div class="method-content">
+                                <span class="method-icon">🏦</span>
+                                <div>
+                                    <strong>Net Banking</strong>
+                                    <small>HDFC, SBI, ICICI, Axis</small>
+                                </div>
+                            </div>
+                        </label>
+
+                        <label class="method-card">
+                            <input type="radio" name="payment_method" value="Digital Wallet" onchange="updatePaymentFields('wallet')">
+                            <div class="method-content">
+                                <span class="method-icon">👛</span>
+                                <div>
+                                    <strong>Digital Wallet</strong>
+                                    <small>Paytm, Amazon Pay, Mobikwik</small>
+                                </div>
+                            </div>
+                        </label>
+
+                        <label class="method-card">
+                            <input type="radio" name="payment_method" value="Cash at Exit Gate" onchange="updatePaymentFields('cash')">
+                            <div class="method-content">
+                                <span class="method-icon">💵</span>
+                                <div>
+                                    <strong>Cash / Counter</strong>
+                                    <small>Pay cash at facility exit</small>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Dynamic Card Details Input Section -->
+                    <div id="cardFields" class="method-fields-box">
+                        <div class="form-group">
+                            <label>Cardholder Name</label>
+                            <input type="text" name="card_name" placeholder="John Doe" value="{{ bill.user_name }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Card Number</label>
+                            <input type="text" name="card_number" placeholder="4111 2222 3333 4444" maxlength="19">
+                        </div>
+                        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div class="form-group">
+                                <label>Expiry Date</label>
+                                <input type="text" name="card_expiry" placeholder="MM/YY" maxlength="5">
+                            </div>
+                            <div class="form-group">
+                                <label>CVV / CVC</label>
+                                <input type="password" name="card_cvv" placeholder="•••" maxlength="4">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic UPI Details Input Section -->
+                    <div id="upiFields" class="method-fields-box" style="display: none;">
+                        <div class="form-group">
+                            <label>Virtual Payment Address (UPI ID)</label>
+                            <input type="text" name="upi_id" placeholder="username@okhdfcbank">
+                        </div>
+                        <div class="upi-qr-mock">
+                            <div class="qr-placeholder">
+                                <span>📱 SCAN QR CODE</span>
+                                <small>Simulated UPI Gateway QR</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Net Banking Input Section -->
+                    <div id="netbankingFields" class="method-fields-box" style="display: none;">
+                        <div class="form-group">
+                            <label>Select Bank</label>
+                            <select name="bank_name" class="styled-select">
+                                <option value="HDFC Bank">HDFC Bank</option>
+                                <option value="State Bank of India">State Bank of India</option>
+                                <option value="ICICI Bank">ICICI Bank</option>
+                                <option value="Axis Bank">Axis Bank</option>
+                                <option value="Kotak Mahindra Bank">Kotak Mahindra Bank</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Wallet Input Section -->
+                    <div id="walletFields" class="method-fields-box" style="display: none;">
+                        <div class="form-group">
+                            <label>Select Wallet</label>
+                            <select name="wallet_provider" class="styled-select">
+                                <option value="Paytm">Paytm Wallet</option>
+                                <option value="PhonePe">PhonePe Wallet</option>
+                                <option value="Amazon Pay">Amazon Pay Balance</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Cash Input Section -->
+                    <div id="cashFields" class="method-fields-box" style="display: none;">
+                        <div class="cash-notice">
+                            <span>ℹ️</span>
+                            <p>Cash payment will be received by the parking exit booth attendant. The system will record the transaction reference immediately upon submission.</p>
+                        </div>
+                    </div>
+
+                    <!-- Sandbox & Simulation Controls (Task 7.3 & 7.4) -->
+                    <div class="sandbox-control-card">
+                        <div class="sandbox-header">
+                            <span class="sandbox-badge">🧪 SIMULATION SANDBOX</span>
+                            <span class="muted-text">Test Success & Failure States</span>
+                        </div>
+                        <div class="form-group" style="margin-top: 10px;">
+                            <label for="simulation_mode">Simulated Transaction Outcome:</label>
+                            <select id="simulation_mode" name="simulation_mode" class="styled-select" onchange="toggleSimulationReason(this.value)">
+                                <option value="success" selected>🟢 Successful Payment (Proceed to Receipt)</option>
+                                <option value="failure">🔴 Failed Payment (Test Decline / Error State)</option>
+                            </select>
+                        </div>
+
+                        <div id="failureReasonGroup" class="form-group" style="display: none; margin-top: 10px;">
+                            <label for="failure_reason">Simulated Failure Reason:</label>
+                            <select id="failure_reason" name="failure_reason" class="styled-select">
+                                <option value="Transaction declined by issuing bank">Transaction declined by issuing bank</option>
+                                <option value="Insufficient account balance">Insufficient account balance</option>
+                                <option value="Payment cancelled by customer">Payment cancelled by customer</option>
+                                <option value="UPI PIN authentication failed">UPI PIN authentication failed</option>
+                                <option value="Gateway connection timeout">Gateway connection timeout</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="payment-submit-wrap">
+                        <button type="submit" class="btn btn-success btn-lg" style="width: 100%;">
+                            💳 Pay ₹{{ "%.2f"|format(bill.final_amount) }} Now →
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>SmartPark · Smart Parking Management System</p>
+        <p>Phase 7: Payment Management & Multi-Method Gateway</p>
+    </footer>
+
+    <script>
+        function updatePaymentFields(type) {
+            document.getElementById('cardFields').style.display = type === 'card' ? 'block' : 'none';
+            document.getElementById('upiFields').style.display = type === 'upi' ? 'block' : 'none';
+            document.getElementById('netbankingFields').style.display = type === 'netbanking' ? 'block' : 'none';
+            document.getElementById('walletFields').style.display = type === 'wallet' ? 'block' : 'none';
+            document.getElementById('cashFields').style.display = type === 'cash' ? 'block' : 'none';
+        }
+
+        function toggleSimulationReason(val) {
+            document.getElementById('failureReasonGroup').style.display = val === 'failure' ? 'block' : 'none';
+        }
+    </script>
+</body>
+</html>

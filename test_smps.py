@@ -20,6 +20,7 @@ class SMPSTestCase(unittest.TestCase):
         self.app = app.app.test_client()
         # Clean and re-init database
         conn = app.get_db()
+        conn.execute("DELETE FROM payments")
         conn.execute("DELETE FROM billing_records")
         conn.execute("DELETE FROM parking_sessions")
         conn.execute("DELETE FROM bookings")
@@ -598,6 +599,340 @@ class SMPSTestCase(unittest.TestCase):
         self.assertEqual(pay_resp.status_code, 200)
         self.assertIn(b"Paid", pay_resp.data)
 
+    # -------------------------------------------------------------------------
+    # PHASE 7: PAYMENT MANAGEMENT TESTS (Tasks 7.1 - 7.8)
+    # -------------------------------------------------------------------------
+
+    def test_task_7_1_and_7_2_payments_table_and_interface(self):
+        """Task 7.1 & 7.2: Verify payments table schema and payment interface rendering"""
+        conn = app.get_db()
+        columns = [r["name"] for r in conn.execute("PRAGMA table_info(payments)").fetchall()]
+        conn.close()
+        required_cols = [
+            "id", "payment_reference", "bill_id", "user_id", "amount",
+            "payment_method", "transaction_id", "payment_status", "failure_reason", "payment_date"
+        ]
+        for col in required_cols:
+            self.assertIn(col, columns, f"Missing column {col} in payments table")
+
+        self.login_user()
+        self.app.post("/vehicles", data={"vehicle_number": "KA 01 PM 7001", "vehicle_type": "Car"}, follow_redirects=True)
+        veh = app.get_user_vehicles(1)[0]
+        self.app.post("/park-now/1", data={"vehicle_id": veh["id"]}, follow_redirects=True)
+
+        conn = app.get_db()
+        ses = conn.execute("SELECT id FROM parking_sessions WHERE slot_id = 1").fetchone()
+        conn.close()
+        self.app.post(f"/end-session/{ses['id']}", follow_redirects=True)
+
+        conn = app.get_db()
+        bill = conn.execute("SELECT id FROM billing_records WHERE session_id = ?", (ses["id"],)).fetchone()
+        conn.close()
+
+        # Visit payment interface (Task 7.1)
+        resp = self.app.get(f"/pay/{bill['id']}")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Payment", resp.data)
+        self.assertIn(b"Choose Payment Method", resp.data)
+        self.assertIn(b"Credit / Debit Card", resp.data)
+        self.assertIn(b"UPI", resp.data)
+        self.assertIn(b"SIMULATION SANDBOX", resp.data)
+
+    def test_task_7_3_to_7_6_payment_success_processing_and_status_update(self):
+        """Task 7.3, 7.4, 7.5, 7.6: Process successful payment, store transaction, and update bill status to Paid"""
+        self.login_user()
+        self.app.post("/vehicles", data={"vehicle_number": "MH 12 PAY 7777", "vehicle_type": "Car"}, follow_redirects=True)
+        veh = app.get_user_vehicles(1)[0]
+        self.app.post("/park-now/1", data={"vehicle_id": veh["id"]}, follow_redirects=True)
+
+        conn = app.get_db()
+        ses = conn.execute("SELECT id FROM parking_sessions WHERE slot_id = 1").fetchone()
+        conn.close()
+        self.app.post(f"/end-session/{ses['id']}", follow_redirects=True)
+
+        conn = app.get_db()
+        bill = conn.execute("SELECT * FROM billing_records WHERE session_id = ?", (ses["id"],)).fetchone()
+        conn.close()
+        self.assertEqual(bill["payment_status"], "Pending Payment")
+
+        # Process successful card payment
+        pay_resp = self.app.post(f"/pay/{bill['id']}", data={
+            "payment_method": "Credit / Debit Card",
+            "simulation_mode": "success",
+            "card_number": "4111 2222 3333 4444"
+        }, follow_redirects=True)
+
+        self.assertEqual(pay_resp.status_code, 200)
+        self.assertIn(b"Payment Successful", pay_resp.data)
+        self.assertIn(b"Payment Receipt", pay_resp.data)
+
+        # Check transaction details stored in database (Task 7.5)
+        conn = app.get_db()
+        payment = conn.execute("SELECT * FROM payments WHERE bill_id = ?", (bill["id"],)).fetchone()
+        updated_bill = conn.execute("SELECT payment_status FROM billing_records WHERE id = ?", (bill["id"],)).fetchone()
+        conn.close()
+
+        self.assertIsNotNone(payment)
+        self.assertEqual(payment["user_id"], 1)
+        self.assertEqual(payment["amount"], bill["final_amount"])
+        self.assertEqual(payment["payment_method"], "Credit / Debit Card")
+        self.assertEqual(payment["payment_status"], "Success")
+        self.assertTrue(payment["transaction_id"].startswith("TXN-"))
+        self.assertTrue(payment["payment_reference"].startswith("PAY-"))
+
+        # Bill status must be updated to Paid (Task 7.6)
+        self.assertEqual(updated_bill["payment_status"], "Paid")
+
+    def test_task_7_4_payment_failure_simulation_and_retry(self):
+        """Task 7.4: Process simulated payment failure state, store failure reason, and allow retry"""
+        self.login_user()
+        self.app.post("/vehicles", data={"vehicle_number": "DL 03 FL 1234", "vehicle_type": "Car"}, follow_redirects=True)
+        veh = app.get_user_vehicles(1)[0]
+        self.app.post("/park-now/1", data={"vehicle_id": veh["id"]}, follow_redirects=True)
+
+        conn = app.get_db()
+        ses = conn.execute("SELECT id FROM parking_sessions WHERE slot_id = 1").fetchone()
+        conn.close()
+        self.app.post(f"/end-session/{ses['id']}", follow_redirects=True)
+
+        conn = app.get_db()
+        bill = conn.execute("SELECT id FROM billing_records WHERE session_id = ?", (ses["id"],)).fetchone()
+        conn.close()
+
+        # Submit simulated failure
+        fail_resp = self.app.post(f"/pay/{bill['id']}", data={
+            "payment_method": "UPI / QR Code",
+            "simulation_mode": "failure",
+            "failure_reason": "Insufficient account balance"
+        }, follow_redirects=True)
+
+        self.assertEqual(fail_resp.status_code, 200)
+        self.assertIn(b"Payment Failed", fail_resp.data)
+        self.assertIn(b"Insufficient account balance", fail_resp.data)
+
+        # Verify failure recorded in payments table
+        conn = app.get_db()
+        failed_payment = conn.execute("SELECT * FROM payments WHERE bill_id = ?", (bill["id"],)).fetchone()
+        bill_check = conn.execute("SELECT payment_status FROM billing_records WHERE id = ?", (bill["id"],)).fetchone()
+        conn.close()
+
+        self.assertIsNotNone(failed_payment)
+        self.assertEqual(failed_payment["payment_status"], "Failed")
+        self.assertEqual(failed_payment["failure_reason"], "Insufficient account balance")
+        # Bill remains Pending Payment
+        self.assertEqual(bill_check["payment_status"], "Pending Payment")
+
+        # Retry and succeed
+        success_resp = self.app.post(f"/pay/{bill['id']}", data={
+            "payment_method": "UPI / QR Code",
+            "simulation_mode": "success"
+        }, follow_redirects=True)
+        self.assertEqual(success_resp.status_code, 200)
+        self.assertIn(b"Payment Successful", success_resp.data)
+
+        conn = app.get_db()
+        bill_final = conn.execute("SELECT payment_status FROM billing_records WHERE id = ?", (bill["id"],)).fetchone()
+        conn.close()
+        self.assertEqual(bill_final["payment_status"], "Paid")
+
+    def test_task_7_6_prevent_double_payment(self):
+        """Task 7.6: Prevent paying a bill that is already paid"""
+        self.login_user()
+        self.app.post("/vehicles", data={"vehicle_number": "KA 04 DP 9999", "vehicle_type": "Car"}, follow_redirects=True)
+        veh = app.get_user_vehicles(1)[0]
+        self.app.post("/park-now/1", data={"vehicle_id": veh["id"]}, follow_redirects=True)
+
+        conn = app.get_db()
+        ses = conn.execute("SELECT id FROM parking_sessions WHERE slot_id = 1").fetchone()
+        conn.close()
+        self.app.post(f"/end-session/{ses['id']}", follow_redirects=True)
+
+        conn = app.get_db()
+        bill = conn.execute("SELECT id FROM billing_records WHERE session_id = ?", (ses["id"],)).fetchone()
+        conn.close()
+
+        # First payment succeeds
+        self.app.post(f"/pay/{bill['id']}", data={"simulation_mode": "success"}, follow_redirects=True)
+
+        # Second attempt to pay same bill
+        dup_pay = self.app.post(f"/pay/{bill['id']}", data={"simulation_mode": "success"}, follow_redirects=True)
+        self.assertIn(b"already been paid", dup_pay.data)
+
+        conn = app.get_db()
+        pay_count = conn.execute("SELECT COUNT(*) FROM payments WHERE bill_id = ? AND payment_status = 'Success'", (bill["id"],)).fetchone()[0]
+        conn.close()
+        self.assertEqual(pay_count, 1)
+
+    def test_task_7_7_payment_receipt_and_unauthorized_protection(self):
+        """Task 7.7: Payment confirmation receipt display and unauthorized access protection"""
+        self.login_user(email="user@test.com")
+        self.app.post("/vehicles", data={"vehicle_number": "TN 01 RC 5555", "vehicle_type": "Car"}, follow_redirects=True)
+        veh = app.get_user_vehicles(1)[0]
+        self.app.post("/park-now/1", data={"vehicle_id": veh["id"]}, follow_redirects=True)
+
+        conn = app.get_db()
+        ses = conn.execute("SELECT id FROM parking_sessions WHERE slot_id = 1").fetchone()
+        conn.close()
+        self.app.post(f"/end-session/{ses['id']}", follow_redirects=True)
+
+        conn = app.get_db()
+        bill = conn.execute("SELECT id FROM billing_records WHERE session_id = ?", (ses["id"],)).fetchone()
+        conn.close()
+
+        pay_resp = self.app.post(f"/pay/{bill['id']}", data={"payment_method": "Digital Wallet", "simulation_mode": "success"}, follow_redirects=True)
+        self.assertEqual(pay_resp.status_code, 200)
+
+        conn = app.get_db()
+        payment = conn.execute("SELECT id FROM payments WHERE bill_id = ?", (bill["id"],)).fetchone()
+        conn.close()
+
+        # View receipt as owner (User 1)
+        receipt_resp = self.app.get(f"/payment/receipt/{payment['id']}")
+        self.assertEqual(receipt_resp.status_code, 200)
+        self.assertIn(b"Payment Receipt", receipt_resp.data)
+        self.assertIn(b"TN 01 RC 5555", receipt_resp.data)
+        self.assertIn(b"Digital Wallet", receipt_resp.data)
+
+        # Switch to User 2 (unauthorized) -> must be denied
+        self.logout_user()
+        self.login_user(email="user2@test.com")
+        unauth_resp = self.app.get(f"/payment/receipt/{payment['id']}", follow_redirects=True)
+        self.assertIn(b"Unauthorized access", unauth_resp.data)
+
+        # Switch to Admin -> must be allowed
+        self.logout_user()
+        self.login_user(email="admin@test.com")
+        admin_resp = self.app.get(f"/payment/receipt/{payment['id']}")
+        self.assertEqual(admin_resp.status_code, 200)
+        self.assertIn(b"Payment Receipt", admin_resp.data)
+
+    # -------------------------------------------------------------------------
+    # PHASE 8: ADMIN DASHBOARD AND REPORTS TESTS (Tasks 8.1 - 8.8)
+    # -------------------------------------------------------------------------
+
+    def test_task_8_1_and_8_2_admin_dashboard_metrics_and_access(self):
+        """Task 8.1 & 8.2: Verify Admin Dashboard UI, access control, and slot metrics (total, available, occupied)"""
+        # Normal user cannot access Admin Dashboard
+        self.login_user(email="user@test.com")
+        denied_resp = self.app.get("/admin/dashboard", follow_redirects=True)
+        self.assertIn(b"Admin access is required", denied_resp.data)
+
+        # Admin user access
+        self.logout_user()
+        self.login_user(email="admin@test.com")
+        dash_resp = self.app.get("/admin/dashboard")
+        self.assertEqual(dash_resp.status_code, 200)
+        self.assertIn(b"Admin", dash_resp.data)
+        self.assertIn(b"Total Parking Slots", dash_resp.data)
+        self.assertIn(b"Available Slots", dash_resp.data)
+        self.assertIn(b"Occupied Slots", dash_resp.data)
+        self.assertIn(b"Occupancy Rate", dash_resp.data)
+
+        # Also verify /admin redirect/route works
+        admin_root = self.app.get("/admin")
+        self.assertEqual(admin_root.status_code, 200)
+
+    def test_task_8_3_8_4_8_5_admin_slot_management_crud(self):
+        """Task 8.3, 8.4, 8.5: Admin add, edit, and remove parking slots"""
+        self.login_user(email="admin@test.com")
+
+        # Task 8.3: Add a new slot
+        add_resp = self.app.post("/admin/slots", data={"slot_number": "D01"}, follow_redirects=True)
+        self.assertIn(b"added successfully", add_resp.data)
+
+        conn = app.get_db()
+        d01 = conn.execute("SELECT * FROM parking_slots WHERE slot_number = 'D01'").fetchone()
+        conn.close()
+        self.assertIsNotNone(d01)
+        self.assertEqual(d01["status"], "Available")
+
+        # Task 8.4: Edit slot details (rename D01 to D02)
+        edit_resp = self.app.post(f"/admin/slot/{d01['id']}/edit", data={"slot_number": "D02"}, follow_redirects=True)
+        self.assertIn(b"Slot updated successfully", edit_resp.data)
+
+        conn = app.get_db()
+        d02 = conn.execute("SELECT * FROM parking_slots WHERE id = ?", (d01["id"],)).fetchone()
+        conn.close()
+        self.assertEqual(d02["slot_number"], "D02")
+
+        # Task 8.5: Remove parking slot
+        del_resp = self.app.post(f"/admin/slot/{d01['id']}/delete", follow_redirects=True)
+        self.assertIn(b"Slot removed successfully", del_resp.data)
+
+        conn = app.get_db()
+        deleted = conn.execute("SELECT * FROM parking_slots WHERE id = ?", (d01["id"],)).fetchone()
+        conn.close()
+        self.assertIsNone(deleted)
+
+    def test_task_8_6_admin_user_management(self):
+        """Task 8.6: Display registered users, search users, and toggle admin roles safely"""
+        self.login_user(email="admin@test.com")
+
+        # Display users
+        users_resp = self.app.get("/admin/users")
+        self.assertEqual(users_resp.status_code, 200)
+        self.assertIn(b"Users & Permissions", users_resp.data)
+        self.assertIn(b"All Registered Users", users_resp.data)
+        self.assertIn(b"Test User", users_resp.data)
+        self.assertIn(b"user@test.com", users_resp.data)
+
+        # Search query filter
+        search_resp = self.app.get("/admin/users?q=Second")
+        self.assertIn(b"Second User", search_resp.data)
+
+        # Promote User 1 (id=1) to Admin
+        toggle_resp = self.app.post("/admin/user/1/toggle-admin", follow_redirects=True)
+        self.assertIn(b"promoted to Administrator", toggle_resp.data)
+
+        conn = app.get_db()
+        u1 = conn.execute("SELECT is_admin FROM users WHERE id = 1").fetchone()
+        conn.close()
+        self.assertEqual(u1["is_admin"], 1)
+
+        # Demote User 1 back to standard user
+        demote_resp = self.app.post("/admin/user/1/toggle-admin", follow_redirects=True)
+        self.assertIn(b"demoted to Standard User", demote_resp.data)
+
+        conn = app.get_db()
+        u1_demoted = conn.execute("SELECT is_admin FROM users WHERE id = 1").fetchone()
+        conn.close()
+        self.assertEqual(u1_demoted["is_admin"], 0)
+
+        # Self-demotion safety check: Admin (id=2) cannot demote themselves
+        self_demote = self.app.post("/admin/user/2/toggle-admin", follow_redirects=True)
+        self.assertIn(b"cannot modify your own", self_demote.data)
+
+    def test_task_8_7_and_8_8_admin_occupancy_and_revenue_reports(self):
+        """Task 8.7 & 8.8: Generate parking occupancy reports and revenue payment reports with CSV exports"""
+        self.login_user(email="admin@test.com")
+
+        # Task 8.7: Parking Occupancy Report
+        occ_resp = self.app.get("/admin/reports/occupancy")
+        self.assertEqual(occ_resp.status_code, 200)
+        self.assertIn(b"Occupancy", occ_resp.data)
+        self.assertIn(b"Slot Utilization Breakdown", occ_resp.data)
+
+        # Task 8.7: CSV Export of Occupancy Report
+        occ_csv = self.app.get("/admin/reports/occupancy/export")
+        self.assertEqual(occ_csv.status_code, 200)
+        self.assertEqual(occ_csv.content_type, "text/csv; charset=utf-8")
+        self.assertIn(b"Slot Number", occ_csv.data)
+        self.assertIn(b"A01", occ_csv.data)
+
+        # Task 8.8: Revenue & Payment Report
+        rev_resp = self.app.get("/admin/reports/revenue")
+        self.assertEqual(rev_resp.status_code, 200)
+        self.assertIn(b"Revenue", rev_resp.data)
+        self.assertIn(b"Itemized Payment Ledger", rev_resp.data)
+
+        # Task 8.8: CSV Export of Revenue Report
+        rev_csv = self.app.get("/admin/reports/revenue/export")
+        self.assertEqual(rev_csv.status_code, 200)
+        self.assertEqual(rev_csv.content_type, "text/csv; charset=utf-8")
+        self.assertIn(b"Transaction ID", rev_csv.data)
+        self.assertIn(b"Amount (INR)", rev_csv.data)
+
 
 if __name__ == "__main__":
     unittest.main()
+

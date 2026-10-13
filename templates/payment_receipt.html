@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Receipt | SmartPark</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar no-print">
+        <a class="logo" href="{{ url_for('dashboard') }}">Smart<span>Park</span></a>
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('parking_slots') }}">Parking Slots</a>
+            <a href="{{ url_for('vehicles') }}">My Vehicles</a>
+            <a href="{{ url_for('active_session_view') }}" class="{{ 'nav-live-pill' if current_active_session else '' }}">Active Session ⏱️</a>
+            <a href="{{ url_for('history') }}">History & Bills</a>
+            <a href="{{ url_for('admin_pricing') }}">Pricing Tariffs</a>
+            {% if is_admin %}
+                <a href="{{ url_for('admin_dashboard') }}">Admin Dashboard</a>
+                <a href="{{ url_for('admin_slots') }}">Admin Slots</a>
+            {% endif %}
+            <a href="{{ url_for('logout') }}">Logout</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <section class="dashboard-heading no-print">
+            <div>
+                <p class="eyebrow">PHASE 7 · PAYMENT CONFIRMATION</p>
+                <h1>Payment <span class="gradient-text">Receipt</span></h1>
+                <p>Transaction confirmed. Your official electronic payment proof is ready.</p>
+            </div>
+            <div class="heading-actions">
+                <button onclick="window.print()" class="btn btn-secondary">
+                    🖨️ Print / Save Receipt
+                </button>
+                <a href="{{ url_for('history') }}" class="btn">
+                    Parking History →
+                </a>
+            </div>
+        </section>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category if category in ['success', 'error'] else 'success' }} no-print">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="receipt-wrapper">
+            <article class="card receipt-card">
+                <!-- Receipt Top Status Banner -->
+                <div class="receipt-status-banner">
+                    <div class="status-check-circle">✓</div>
+                    <h2>Payment Successful</h2>
+                    <p class="receipt-subtitle">Transaction processed and recorded officially.</p>
+                </div>
+
+                <div class="receipt-meta-grid">
+                    <div class="receipt-meta-item">
+                        <span class="meta-label">Transaction ID</span>
+                        <code class="meta-val">{{ payment.transaction_id }}</code>
+                    </div>
+                    <div class="receipt-meta-item">
+                        <span class="meta-label">Payment Reference</span>
+                        <code class="meta-val">{{ payment.payment_reference }}</code>
+                    </div>
+                    <div class="receipt-meta-item">
+                        <span class="meta-label">Invoice Ref</span>
+                        <span class="meta-val">{{ payment.bill_reference }}</span>
+                    </div>
+                    <div class="receipt-meta-item">
+                        <span class="meta-label">Payment Date</span>
+                        <span class="meta-val">{{ payment.payment_date|format_dt }}</span>
+                    </div>
+                </div>
+
+                <hr class="invoice-divider">
+
+                <!-- 2-Column Info Details -->
+                <div class="invoice-info-grid">
+                    <div class="invoice-info-col">
+                        <h3>Customer & Vehicle Information</h3>
+                        <table class="invoice-meta-table">
+                            <tr>
+                                <td>Paid By:</td>
+                                <td><strong>{{ payment.user_name }}</strong> ({{ payment.user_email }})</td>
+                            </tr>
+                            <tr>
+                                <td>Vehicle Number:</td>
+                                <td><strong class="plate-text-pill">{{ payment.vehicle_number }}</strong></td>
+                            </tr>
+                            <tr>
+                                <td>Vehicle Type:</td>
+                                <td>{{ payment.vehicle_type or 'Car' }}{% if payment.model %} · {{ payment.model }}{% endif %}</td>
+                            </tr>
+                            <tr>
+                                <td>Parking Slot:</td>
+                                <td><span class="slot-badge-text">Slot {{ payment.slot_number }}</span></td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div class="invoice-info-col">
+                        <h3>Session & Payment Details</h3>
+                        <table class="invoice-meta-table">
+                            <tr>
+                                <td>Session Code:</td>
+                                <td><code>{{ payment.session_code }}</code></td>
+                            </tr>
+                            <tr>
+                                <td>Payment Method:</td>
+                                <td><strong class="text-highlight">{{ payment.payment_method }}</strong></td>
+                            </tr>
+                            <tr>
+                                <td>Parking Duration:</td>
+                                <td>{{ payment.duration_minutes|format_duration }} ({{ payment.billed_hours }} hr{{ 's' if payment.billed_hours > 1 else '' }})</td>
+                            </tr>
+                            <tr>
+                                <td>Rate Tariff:</td>
+                                <td>₹{{ "%.2f"|format(payment.hourly_rate) }}/hr · {{ payment.pricing_rule_name }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Payment Summary Box -->
+                <div class="receipt-amount-box">
+                    <div class="amount-row">
+                        <span>Parking Fee Amount</span>
+                        <span>₹{{ "%.2f"|format(payment.amount) }}</span>
+                    </div>
+                    <div class="amount-row">
+                        <span>Payment Status</span>
+                        <span class="status-pill status-active">● {{ payment.payment_status }}</span>
+                    </div>
+                    <hr class="summary-divider">
+                    <div class="amount-row total-paid-row">
+                        <span>Total Paid</span>
+                        <h2 class="stat-green">₹{{ "%.2f"|format(payment.amount) }}</h2>
+                    </div>
+                </div>
+
+                <div class="receipt-footer-actions no-print">
+                    <a href="{{ url_for('bill_summary', session_id=payment.bill_id) }}" class="btn btn-secondary">
+                        📄 View Itemized Bill
+                    </a>
+                    <a href="{{ url_for('history') }}" class="btn btn-secondary">
+                        📜 View Parking History
+                    </a>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+                        🏠 Back to Dashboard
+                    </a>
+                </div>
+            </article>
+        </div>
+    </main>
+
+    <footer class="no-print">
+        <p>SmartPark · Smart Parking Management System</p>
+        <p>Phase 7: Payment Management & Transaction Confirmation</p>
+    </footer>
+</body>
+</html>

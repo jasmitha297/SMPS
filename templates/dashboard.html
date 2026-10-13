@@ -17,6 +17,7 @@
             <a href="{{ url_for('history') }}">History & Bills</a>
             <a href="{{ url_for('admin_pricing') }}">Pricing Tariffs</a>
             {% if is_admin %}
+                <a href="{{ url_for('admin_dashboard') }}">Admin Dashboard</a>
                 <a href="{{ url_for('admin_slots') }}">Admin Slots</a>
             {% endif %}
             <a href="{{ url_for('logout') }}">Logout</a>
@@ -39,6 +40,11 @@
                     <a href="{{ url_for('active_session_view') }}" class="btn btn-secondary {{ 'nav-live-pill' if current_active_session else '' }}">
                         ⏱️ Live Session Timer
                     </a>
+                    {% if is_admin %}
+                        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary" style="border-color: var(--cyan); color: var(--cyan);">
+                            👑 Admin Dashboard
+                        </a>
+                    {% endif %}
                     <a href="{{ url_for('admin_pricing') }}" class="btn btn-secondary">
                         💰 Pricing Tariffs
                     </a>

@@ -17,6 +17,7 @@
             <a href="{{ url_for('history') }}">History & Bills</a>
             <a href="{{ url_for('admin_pricing') }}">Pricing Tariffs</a>
             {% if is_admin %}
+                <a href="{{ url_for('admin_dashboard') }}">Admin Dashboard</a>
                 <a href="{{ url_for('admin_slots') }}">Admin Slots</a>
             {% endif %}
             <a href="{{ url_for('logout') }}">Logout</a>
@@ -182,27 +183,43 @@
                     </div>
                 </div>
 
-                <!-- Phase 7 Payment Stage Callout (Task 6.7) -->
+                <!-- Phase 7 Payment Stage Callout (Task 6.7 & Task 7.1) -->
                 <div class="payment-action-box no-print">
                     <div class="payment-notice">
                         <div class="notice-icon">💳</div>
                         <div>
                             <h4>Payment Processing Status</h4>
-                            <p>Phase 7 is dedicated to full Payment Gateway integration. Your session is completed and the slot has already been safely released.</p>
+                            {% if bill.payment_status == 'Paid' %}
+                                <p>This parking invoice has been successfully paid and recorded. Slot <strong>{{ bill.slot_number }}</strong> is released.</p>
+                                {% if payment %}
+                                    <p class="muted-text" style="margin-top: 5px;">Transaction ID: <code>{{ payment.transaction_id }}</code> · Method: <strong>{{ payment.payment_method }}</strong> · Paid on {{ payment.payment_date|format_dt }}</p>
+                                {% endif %}
+                            {% else %}
+                                <p>Phase 7 Multi-Method Payment Gateway is active. Choose your preferred channel (Card, UPI, Net Banking, Wallet, Cash) to settle your fee.</p>
+                            {% endif %}
                         </div>
                     </div>
 
                     <div class="payment-button-group">
                         {% if bill.payment_status != 'Paid' %}
-                            <form action="{{ url_for('pay_bill', bill_id=bill.id) }}" method="POST">
-                                <button type="submit" class="btn btn-success btn-lg">
-                                    💳 Pay Bill Now (Simulate Phase 7) →
+                            <a href="{{ url_for('pay_interface', bill_id=bill.id) }}" class="btn btn-success btn-lg">
+                                💳 Proceed to Payment Gateway →
+                            </a>
+                            <form action="{{ url_for('pay_bill', bill_id=bill.id) }}" method="POST" style="display:inline;">
+                                <button type="submit" class="btn btn-secondary btn-lg" title="Fast simulated payment">
+                                    ⚡ Fast Pay
                                 </button>
                             </form>
                         {% else %}
-                            <button class="btn btn-secondary btn-lg" disabled>
-                                ✓ Payment Completed
-                            </button>
+                            {% if payment %}
+                                <a href="{{ url_for('payment_receipt', payment_id=payment.id) }}" class="btn btn-success btn-lg">
+                                    ✓ View Payment Receipt →
+                                </a>
+                            {% else %}
+                                <button class="btn btn-secondary btn-lg" disabled>
+                                    ✓ Payment Completed
+                                </button>
+                            {% endif %}
                         {% endif %}
                         <a href="{{ url_for('history') }}" class="btn btn-secondary btn-lg">
                             Go to Parking History →
